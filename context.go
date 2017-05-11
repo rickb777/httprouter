@@ -17,3 +17,12 @@ func GetParams(ctx context.Context) Params {
 func withParams(parent context.Context, ps Params) context.Context {
 	return context.WithValue(parent, keyParams, ps)
 }
+
+// ByName gets params by name from context
+func ByName(ctx context.Context, name string) string {
+	ps := GetParams(ctx)
+	if ps == nil {
+		return ""
+	}
+	return ps.ByName(name)
+}
