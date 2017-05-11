@@ -18,8 +18,8 @@ func withParams(parent context.Context, ps Params) context.Context {
 	return context.WithValue(parent, keyParams, ps)
 }
 
-// GetByName gets a param by name from context
-func GetByName(ctx context.Context, name string) string {
+// GetParam gets a param by name from context
+func GetParam(ctx context.Context, name string) string {
 	ps := GetParams(ctx)
 	if ps == nil {
 		return ""
