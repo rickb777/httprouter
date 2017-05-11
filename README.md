@@ -42,18 +42,20 @@ import (
     "log"
 )
 
-func Index(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+func Index(w http.ResponseWriter, r *http.Request) {
     fmt.Fprint(w, "Welcome!\n")
 }
 
-func Hello(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-    fmt.Fprintf(w, "hello, %s!\n", ps.ByName("name"))
+func Hello(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		ps := httprouter.GetParams(ctx)
+    fmt.Fprintf(w, "hello, %s!\n", ps.ByName("name")) // or httprouter.GetByName(ctx, "name")
 }
 
 func main() {
     router := httprouter.New()
-    router.GET("/", Index)
-    router.GET("/hello/:name", Hello)
+    router.GET("/", http.HandlerFunc(Index))
+    router.GET("/hello/:name", http.HandlerFunc(Hello))
 
     log.Fatal(http.ListenAndServe(":8080", router))
 }
@@ -192,27 +194,27 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
-func BasicAuth(h httprouter.Handle, requiredUser, requiredPassword string) httprouter.Handle {
-	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func BasicAuth(h http.Handler, requiredUser, requiredPassword string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Get the Basic Authentication credentials
 		user, password, hasAuth := r.BasicAuth()
 
 		if hasAuth && user == requiredUser && password == requiredPassword {
 			// Delegate request to the given handle
-			h(w, r, ps)
+			h.ServeHTTP(w, r)
 		} else {
 			// Request Basic Authentication otherwise
 			w.Header().Set("WWW-Authenticate", "Basic realm=Restricted")
 			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 		}
-	}
+	})
 }
 
-func Index(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+func Index(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, "Not protected!\n")
 }
 
-func Protected(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+func Protected(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, "Protected!\n")
 }
 
@@ -221,8 +223,8 @@ func main() {
 	pass := "secret!"
 
 	router := httprouter.New()
-	router.GET("/", Index)
-	router.GET("/protected/", BasicAuth(Protected, user, pass))
+	router.GET("/", http.HandlerFunc(Index))
+	router.GET("/protected/", BasicAuth(http.HandlerFunc(Protected), user, pass))
 
 	log.Fatal(http.ListenAndServe(":8080", router))
 }
