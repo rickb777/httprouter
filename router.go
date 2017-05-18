@@ -174,48 +174,58 @@ func New() *Router {
 
 // GET is a shortcut for router.Handle("GET", path, handle)
 func (r *Router) GET(path string, handle http.Handler) {
-	r.Handle("GET", path, handle)
+	r.Handle(path, handle, "GET")
 }
 
 // HEAD is a shortcut for router.Handle("HEAD", path, handle)
 func (r *Router) HEAD(path string, handle http.Handler) {
-	r.Handle("HEAD", path, handle)
+	r.Handle(path, handle, "HEAD")
 }
 
 // OPTIONS is a shortcut for router.Handle("OPTIONS", path, handle)
 func (r *Router) OPTIONS(path string, handle http.Handler) {
-	r.Handle("OPTIONS", path, handle)
+	r.Handle(path, handle, "OPTIONS")
 }
 
 // POST is a shortcut for router.Handle("POST", path, handle)
 func (r *Router) POST(path string, handle http.Handler) {
-	r.Handle("POST", path, handle)
+	r.Handle(path, handle, "POST")
 }
 
 // PUT is a shortcut for router.Handle("PUT", path, handle)
 func (r *Router) PUT(path string, handle http.Handler) {
-	r.Handle("PUT", path, handle)
+	r.Handle(path, handle, "PUT")
 }
 
 // PATCH is a shortcut for router.Handle("PATCH", path, handle)
 func (r *Router) PATCH(path string, handle http.Handler) {
-	r.Handle("PATCH", path, handle)
+	r.Handle(path, handle, "PATCH")
 }
 
 // DELETE is a shortcut for router.Handle("DELETE", path, handle)
 func (r *Router) DELETE(path string, handle http.Handler) {
-	r.Handle("DELETE", path, handle)
+	r.Handle(path, handle, "DELETE")
 }
 
-// Handle registers a new request handle with the given path and method.
+// AllMethods is a list of all the 'normal' methods, i.e. HEAD", "GET", "PUT", "POST",
+// "DELETE", "PATCH", "OPTIONS.
 //
-// For GET, POST, PUT, PATCH and DELETE requests the respective shortcut
-// functions can be used.
+// It doesn't include methods used by extension protocols such as WebDav, although
+// you can change it if you need this.
+var AllMethods = []string{"HEAD", "GET", "PUT", "POST", "DELETE", "PATCH", "OPTIONS"}
+
+// HandleAll registers a new request handle with the given path and all method listed
+// in AllMethods.
+func (r *Router) HandleAll(path string, handle http.Handler) {
+	r.Handle(path, handle, AllMethods...)
+}
+
+// Handle registers a new request handle with the given path and method(s).
+// If no methods are specified, the default list of methods is "HEAD", "GET".
 //
-// This function is intended for bulk loading and to allow the usage of less
-// frequently used, non-standardized or custom methods (e.g. for internal
-// communication with a proxy).
-func (r *Router) Handle(method, path string, handle http.Handler) {
+// Usually the respective shortcut functions (GET, POST, PUT etc) can be used
+// instead of this method.
+func (r *Router) Handle(path string, handle http.Handler, methods ...string) {
 	if path[0] != '/' {
 		panic("path must begin with '/' in path '" + path + "'")
 	}
@@ -224,19 +234,26 @@ func (r *Router) Handle(method, path string, handle http.Handler) {
 		r.trees = make(map[string]*node)
 	}
 
-	root := r.trees[method]
-	if root == nil {
-		root = new(node)
-		r.trees[method] = root
+	if len(methods) == 0 {
+		methods = []string{"HEAD", "GET"}
 	}
 
-	root.addRoute(path, handle)
+	for _, method := range methods {
+		root := r.trees[method]
+		if root == nil {
+			root = new(node)
+			r.trees[method] = root
+		}
+
+		root.addRoute(path, handle)
+	}
 }
 
-// HandleFunc is an adapter which allows the usage of an http.HandleFunc as a
+// HandleFunc is an adapter which allows the use of an http.HandleFunc as a
 // request handle.
-func (r *Router) HandleFunc(method, path string, handler http.HandlerFunc) {
-	r.Handle(method, path, handler)
+// If no methods are specified, the default list of methods is "HEAD", "GET".
+func (r *Router) HandleFunc(path string, handler http.HandlerFunc, methods ...string) {
+	r.Handle(path, handler, methods...)
 }
 
 // ServeFiles serves files from the given file system root.

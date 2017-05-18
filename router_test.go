@@ -49,14 +49,14 @@ func TestRouter(t *testing.T) {
 	router := New()
 
 	routed := false
-	router.Handle("GET", "/user/:name", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	router.Handle("/user/:name", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ps := GetParams(r.Context())
 		routed = true
 		want := Params{Param{"name", "gopher"}}
 		if !reflect.DeepEqual(ps, want) {
 			t.Fatalf("wrong wildcard values: want %v, got %v", want, ps)
 		}
-	}))
+	}), "GET")
 
 	w := new(mockResponseWriter)
 
@@ -103,10 +103,10 @@ func TestRouterAPI(t *testing.T) {
 	router.DELETE("/DELETE", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		delete = true
 	}))
-	router.Handle("GET", "/Handler", httpHandler)
-	router.HandleFunc("GET", "/HandlerFunc", func(w http.ResponseWriter, r *http.Request) {
+	router.Handle("/Handler", httpHandler, "GET")
+	router.HandleFunc("/HandlerFunc", func(w http.ResponseWriter, r *http.Request) {
 		handlerFunc = true
-	})
+	}, "GET")
 
 	w := new(mockResponseWriter)
 
@@ -162,6 +162,25 @@ func TestRouterAPI(t *testing.T) {
 	router.ServeHTTP(w, r)
 	if !handlerFunc {
 		t.Error("routing HandlerFunc failed")
+	}
+}
+
+func TestRouterHandleAll(t *testing.T) {
+	var saw = make(map[string]struct{})
+
+	router := New()
+	router.HandleAll("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		saw[r.Method] = struct{}{}
+	}))
+
+	w := new(mockResponseWriter)
+
+	for _, method := range []string{"HEAD", "GET", "PUT", "POST", "DELETE", "PATCH", "OPTIONS"} {
+		r, _ := http.NewRequest(method, "/", nil)
+		router.ServeHTTP(w, r)
+		if _, ok := saw[method]; !ok {
+			t.Errorf("routing %s failed", method)
+		}
 	}
 }
 
@@ -429,9 +448,9 @@ func TestRouterPanicHandler(t *testing.T) {
 		panicHandled = true
 	}
 
-	router.Handle("PUT", "/user/:name", http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
+	router.Handle("/user/:name", http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		panic("oops!")
-	}))
+	}), "PUT")
 
 	w := new(mockResponseWriter)
 	req, _ := http.NewRequest("PUT", "/user/gopher", nil)
