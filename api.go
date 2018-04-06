@@ -147,4 +147,3 @@ var AllMethods = []string{"HEAD", "GET", "PUT", "POST", "DELETE", "PATCH", "OPTI
 func (r *Router) HandleAll(path string, handle http.Handler) {
 	r.Handle(path, handle, AllMethods...)
 }
-

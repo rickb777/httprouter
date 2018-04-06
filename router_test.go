@@ -396,7 +396,7 @@ func TestRouterNotFound(t *testing.T) {
 		{"/PATH/", 301, "/path"},   // Fixed Case -/
 		{"/DIR", 301, "/dir/"},     // Fixed Case +/
 		{"/../path", 301, "/path"}, // CleanPath
-		{"/nope", 404, ""},                         // NotFound
+		{"/nope", 404, ""},         // NotFound
 	}
 	for _, tr := range testRoutes {
 		r, _ := http.NewRequest("GET", tr.route, nil)
