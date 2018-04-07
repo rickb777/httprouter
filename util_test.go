@@ -6,8 +6,8 @@ package httprouter
 
 import (
 	"net/http/httptest"
-	"testing"
 	"net/url"
+	"testing"
 )
 
 func TestStripLeadingSegments_should_create_handler_that_drops_segments(t *testing.T) {

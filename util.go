@@ -6,8 +6,8 @@ package httprouter
 
 import (
 	"net/http"
-	"strings"
 	"net/url"
+	"strings"
 )
 
 // StripLeadingSegments drops a fixed number of segments off the front of the URL

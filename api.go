@@ -76,12 +76,12 @@ func New() *Router {
 
 // Specify the main HTTP verbs.
 const (
-	GET = "GET"
-	PUT = "PUT"
-	HEAD = "HEAD"
-	POST = "POST"
-	DELETE = "DELETE"
-	PATCH = "PATCH"
+	GET     = "GET"
+	PUT     = "PUT"
+	HEAD    = "HEAD"
+	POST    = "POST"
+	DELETE  = "DELETE"
+	PATCH   = "PATCH"
 	OPTIONS = "OPTIONS"
 )
 
