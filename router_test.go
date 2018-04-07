@@ -13,22 +13,6 @@ import (
 	"testing"
 )
 
-type mockResponseWriter struct{}
-
-func (m *mockResponseWriter) Header() (h http.Header) {
-	return http.Header{}
-}
-
-func (m *mockResponseWriter) Write(p []byte) (n int, err error) {
-	return len(p), nil
-}
-
-func (m *mockResponseWriter) WriteString(s string) (n int, err error) {
-	return len(s), nil
-}
-
-func (m *mockResponseWriter) WriteHeader(int) {}
-
 func TestParams(t *testing.T) {
 	ps := Params{
 		Param{"param1", "value1"},
@@ -58,7 +42,7 @@ func TestRouter(t *testing.T) {
 		}
 	}), "GET")
 
-	w := new(mockResponseWriter)
+	w := httptest.NewRecorder()
 
 	req, _ := http.NewRequest("GET", "/user/gopher", nil)
 	router.ServeHTTP(w, req)
@@ -108,7 +92,7 @@ func TestRouterAPI(t *testing.T) {
 		handlerFunc = true
 	}, "GET")
 
-	w := new(mockResponseWriter)
+	w := httptest.NewRecorder()
 
 	r, _ := http.NewRequest("GET", "/GET", nil)
 	router.ServeHTTP(w, r)
@@ -173,7 +157,7 @@ func TestRouterHandleAll(t *testing.T) {
 		saw[r.Method] = struct{}{}
 	}))
 
-	w := new(mockResponseWriter)
+	w := httptest.NewRecorder()
 
 	for _, method := range []string{"HEAD", "GET", "PUT", "POST", "DELETE", "PATCH", "OPTIONS"} {
 		r, _ := http.NewRequest(method, "/", nil)
@@ -452,7 +436,7 @@ func TestRouterPanicHandler(t *testing.T) {
 		panic("oops!")
 	}), "PUT")
 
-	w := new(mockResponseWriter)
+	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("PUT", "/user/gopher", nil)
 
 	defer func() {
@@ -541,7 +525,7 @@ func TestRouterServeFiles(t *testing.T) {
 	}
 
 	router.ServeFiles("/*filepath", mfs)
-	w := new(mockResponseWriter)
+	w := httptest.NewRecorder()
 	r, _ := http.NewRequest("GET", "/favicon.ico", nil)
 	router.ServeHTTP(w, r)
 	if !mfs.opened {
