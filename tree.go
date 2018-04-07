@@ -329,7 +329,7 @@ func (n *node) insertChild(numParams uint8, path, fullPath string, handle http.H
 // Returns the handle registered with the given path (key). The values of
 // wildcards are saved to a map.
 // If no handle can be found, a TSR (trailing slash redirect) recommendation is
-// made if a handle exists with an extra (without the) trailing slash for the
+// made if a handle exists with an extra (or without the) trailing slash for the
 // given path.
 func (n *node) getValue(path string) (handle http.Handler, p Params, tsr bool) {
 walk: // outer loop for walking the tree
@@ -454,8 +454,9 @@ walk: // outer loop for walking the tree
 	}
 }
 
+// makePathList traverses the tree constructing a slice of all the paths leading
+// to each registered handler.
 func (n *node) makePathList(parents []*node, list []string) []string {
-
 	if n.handle != nil {
 		buf := &bytes.Buffer{}
 		for _, p := range parents {
@@ -463,11 +464,6 @@ func (n *node) makePathList(parents []*node, list []string) []string {
 		}
 		io.WriteString(buf, n.path)
 		list = append(list, buf.String())
-	}
-
-	if len(n.children) == 0 {
-		return list
-
 	}
 
 	for _, c := range n.children {

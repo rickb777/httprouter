@@ -568,10 +568,25 @@ func (mfs *mockFileSystem) Open(name string) (http.File, error) {
 	return nil, errors.New("this is just a mock")
 }
 
-func TestRouter_ServeFiles(t *testing.T) {
-	cases := []string{GET, HEAD}
+func TestRouter_SubRouter_panics(t *testing.T) {
+	cases := []string{"/noFilepath", "/foo*/"}
 
 	for _, c := range cases {
+		router := New()
+
+		recv := catchPanic(func() {
+			router.SubRouter(c, NewStubHandler())
+		})
+		if recv == nil {
+			t.Errorf("%s: registering path not ending with '*filepath' did not panic", c)
+		}
+	}
+}
+
+func TestRouter_ServeFiles_supported_methods(t *testing.T) {
+	cases := []string{GET, HEAD}
+
+	for _, method := range cases {
 		router := New()
 		mfs := &mockFileSystem{}
 
@@ -583,11 +598,33 @@ func TestRouter_ServeFiles(t *testing.T) {
 		}
 
 		router.ServeFiles("/*filepath", mfs)
+
 		w := httptest.NewRecorder()
-		r, _ := http.NewRequest(c, "/favicon.ico", nil)
+		r, _ := http.NewRequest(method, "/favicon.ico", nil)
 		router.ServeHTTP(w, r)
 		if !mfs.opened {
-			t.Error("serving file failed")
+			t.Errorf("%s: serving file failed", method)
+		}
+	}
+}
+
+func TestRouter_ServeFiles_unsupported_methods(t *testing.T) {
+	cases := []string{PUT, POST, DELETE}
+
+	for _, method := range cases {
+		router := New()
+		mfs := &mockFileSystem{}
+
+		router.ServeFiles("/*filepath", mfs)
+
+		w := httptest.NewRecorder()
+		r, _ := http.NewRequest(method, "/favicon.ico", nil)
+		router.ServeHTTP(w, r)
+		if mfs.opened {
+			t.Errorf("%s: serving file should not happen", method)
+		}
+		if w.Code != 405 {
+			t.Errorf("%s: code was %d", method, w.Code)
 		}
 	}
 }

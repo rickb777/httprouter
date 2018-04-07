@@ -180,8 +180,9 @@ func (r *Router) HandleFunc(path string, handler http.HandlerFunc, methods ...st
 // is "passwd" and the handler is an asset handler such as http.FileServer, the local file
 // "/etc/passwd" would be served.
 //
-// Both GET and HEAD methods are supported.
-func (r *Router) SubRouter(path string, fileServer http.Handler) {
+// If no methods are specified, all methods will be supported. Otherwise, only the
+// specified methods will be supported.
+func (r *Router) SubRouter(path string, fileServer http.Handler, methods ...string) {
 	if strings.HasSuffix(path, "/") {
 		if strings.IndexByte(path, '*') > 0 {
 			panic("'" + path + "' - path must end with / or /*filepath")
@@ -191,11 +192,15 @@ func (r *Router) SubRouter(path string, fileServer http.Handler) {
 		panic("'" + path + "' - path must end with / or /*filepath")
 	}
 
+	if len(methods) == 0 {
+		methods = AllMethods
+	}
+
 	r.Handle(path, http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		ps := GetParams(req.Context())
 		req.URL.Path = ps.ByName("filepath")
 		fileServer.ServeHTTP(w, req)
-	}))
+	}), methods...)
 }
 
 // ServeFiles serves files from the given file system root using the http.FileServer
@@ -213,11 +218,12 @@ func (r *Router) SubRouter(path string, fileServer http.Handler) {
 // use http.Dir:
 //     router.ServeFiles("/src/*filepath", http.Dir("/var/www"))
 func (r *Router) ServeFiles(path string, root http.FileSystem) {
-	r.SubRouter(path, http.FileServer(root))
+	r.SubRouter(path, http.FileServer(root), GET, HEAD)
 }
 
 // Lookup allows the manual lookup of a method + path combo.
 // This is e.g. useful to build a framework around this router.
+//
 // If the path was found, it returns the handle function and the path parameter
 // values. Otherwise the third return value indicates whether a redirection to
 // the same path with an extra / without the trailing slash should be performed.
@@ -230,6 +236,8 @@ func (r *Router) Lookup(method, path string) (http.Handler, Params, bool) {
 
 // ListPaths allows inspection of the paths known to the router, grouped by method.
 // If method is blank, all registered methods are returned.
+//
+// The resulting slices are sorted in increasing order.
 //
 // This is intended for debugging and diagnostics.
 func (r *Router) ListPaths(method string) map[string][]string {
