@@ -23,7 +23,7 @@ func (r *Router) Handle(path string, handle http.Handler, methods ...string) {
 	}
 
 	if len(methods) == 0 {
-		methods = []string{"HEAD", "GET"}
+		methods = []string{HEAD, GET}
 	}
 
 	for _, method := range methods {
@@ -51,23 +51,25 @@ func (r *Router) HandleFunc(path string, handler http.HandlerFunc, methods ...st
 // For example if root is "/etc" and *filepath is "passwd", the local file
 // "/etc/passwd" would be served.
 //
-// Internally a http.FileServer is used, therefore http.NotFound is used instead
-// of the Router's NotFound handler.
+// The specified handler is used as the file server. This may be nil, in which case
+// a http.FileServer is used, but in this case http.NotFound is used instead of
+// the Router's NotFound handler.
+//
+// Both GET and HEAD methods are supported.
 //
 // To use the operating system's file system implementation,
 // use http.Dir:
-//     router.ServeFiles("/src/*filepath", http.Dir("/var/www"))
-func (r *Router) ServeFiles(path string, root http.FileSystem) {
+//     router.ServeFiles("/src/*filepath", http.Dir("/var/www"), nil)
+func (r *Router) ServeFiles(path string, root http.FileSystem, fileServer http.Handler) {
 	if len(path) < 10 || path[len(path)-10:] != "/*filepath" {
 		panic("path must end with /*filepath in path '" + path + "'")
 	}
 
-	fileServer := r.FileServer
 	if fileServer == nil {
 		fileServer = http.FileServer(root)
 	}
 
-	r.GET(path, http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+	r.Handle(path, http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		ps := GetParams(req.Context())
 		req.URL.Path = ps.ByName("filepath")
 		fileServer.ServeHTTP(w, req)

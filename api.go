@@ -6,28 +6,6 @@ package httprouter
 
 import "net/http"
 
-// Param is a single URL parameter, consisting of a key and a value.
-type Param struct {
-	Key   string
-	Value string
-}
-
-// Params is a Param-slice, as returned by the router.
-// The slice is ordered, the first URL parameter is also the first slice value.
-// It is therefore safe to read values by the index.
-type Params []Param
-
-// ByName returns the value of the first Param which key matches the given name.
-// If no matching Param is found, an empty string is returned.
-func (ps Params) ByName(name string) string {
-	for i := range ps {
-		if ps[i].Key == name {
-			return ps[i].Value
-		}
-	}
-	return ""
-}
-
 // Router is a http.Handler which can be used to dispatch requests to different
 // handler functions via configurable routes
 type Router struct {
@@ -63,10 +41,6 @@ type Router struct {
 	// Custom OPTIONS handlers take priority over automatic replies.
 	HandleOPTIONS bool
 
-	// Configurable http.Handler which is called when the ServeFiles
-	// http handler is invoked. If it is not set, http.FileServer is used.
-	FileServer http.Handler
-
 	// Configurable http.Handler which is called when no matching route is
 	// found. If it is not set, http.NotFound is used.
 	NotFound http.Handler
@@ -100,47 +74,58 @@ func New() *Router {
 	}
 }
 
-// GET is a shortcut for router.Handle("GET", path, handle)
+// Specify the main HTTP verbs.
+const (
+	GET = "GET"
+	PUT = "PUT"
+	HEAD = "HEAD"
+	POST = "POST"
+	DELETE = "DELETE"
+	PATCH = "PATCH"
+	OPTIONS = "OPTIONS"
+)
+
+// GET is a shortcut for router.Handle(path, handle, "GET")
 func (r *Router) GET(path string, handle http.Handler) {
-	r.Handle(path, handle, "GET")
+	r.Handle(path, handle, GET)
 }
 
-// HEAD is a shortcut for router.Handle("HEAD", path, handle)
+// HEAD is a shortcut for router.Handle(path, handle, "HEAD")
 func (r *Router) HEAD(path string, handle http.Handler) {
-	r.Handle(path, handle, "HEAD")
+	r.Handle(path, handle, HEAD)
 }
 
-// OPTIONS is a shortcut for router.Handle("OPTIONS", path, handle)
+// OPTIONS is a shortcut for router.Handle(path, handle, "OPTIONS")
 func (r *Router) OPTIONS(path string, handle http.Handler) {
-	r.Handle(path, handle, "OPTIONS")
+	r.Handle(path, handle, OPTIONS)
 }
 
-// POST is a shortcut for router.Handle("POST", path, handle)
+// POST is a shortcut for router.Handle(path, handle, "POST")
 func (r *Router) POST(path string, handle http.Handler) {
-	r.Handle(path, handle, "POST")
+	r.Handle(path, handle, POST)
 }
 
-// PUT is a shortcut for router.Handle("PUT", path, handle)
+// PUT is a shortcut for router.Handle(path, handle, "PUT")
 func (r *Router) PUT(path string, handle http.Handler) {
-	r.Handle(path, handle, "PUT")
+	r.Handle(path, handle, PUT)
 }
 
-// PATCH is a shortcut for router.Handle("PATCH", path, handle)
+// PATCH is a shortcut for router.Handle(path, handle, "PATCH")
 func (r *Router) PATCH(path string, handle http.Handler) {
-	r.Handle(path, handle, "PATCH")
+	r.Handle(path, handle, PATCH)
 }
 
-// DELETE is a shortcut for router.Handle("DELETE", path, handle)
+// DELETE is a shortcut for router.Handle(path, handle, "DELETE")
 func (r *Router) DELETE(path string, handle http.Handler) {
-	r.Handle(path, handle, "DELETE")
+	r.Handle(path, handle, DELETE)
 }
 
-// AllMethods is a list of all the 'normal' methods, i.e. HEAD", "GET", "PUT", "POST",
-// "DELETE", "PATCH", "OPTIONS.
+// AllMethods is a list of all the 'normal' methods,
+// i.e. HEAD, GET, PUT, POST, DELETE, PATCH, OPTIONS.
 //
 // It doesn't include methods used by extension protocols such as WebDav, although
 // you can change it if you need this.
-var AllMethods = []string{"HEAD", "GET", "PUT", "POST", "DELETE", "PATCH", "OPTIONS"}
+var AllMethods = []string{HEAD, GET, PUT, POST, DELETE, PATCH, OPTIONS}
 
 // HandleAll registers a new request handle with the given path and all method listed
 // in AllMethods.
