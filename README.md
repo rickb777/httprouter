@@ -24,6 +24,8 @@ The router is optimized for high performance and a small memory footprint. It sc
 
 **Perfect for APIs:** The router design encourages to build sensible, hierarchical RESTful APIs. Moreover it has builtin native support for [OPTIONS requests](http://zacstewart.com/2012/04/14/http-options-method.html) and `405 Method Not Allowed` replies.
 
+**Automatic HEAD requests:** All routes set up for GET requests are also used for HEAD requests, although this behaviour can be overridden. Responses from HEAD requests are always zero-length.
+
 Of course you can also set **custom [`NotFound`](https://godoc.org/github.com/rickb777/httprouter#Router.NotFound) and [`MethodNotAllowed`](https://godoc.org/github.com/rickb777/httprouter#Router.MethodNotAllowed) handlers**.
 
 You can [**serve static files**](https://godoc.org/github.com/rickb777/httprouter#Router.ServeFiles) with a the standard http.ServeFiles or a custom [`FileServer`](https://godoc.org/github.com/rickb777/httprouter#Router.FileServer).

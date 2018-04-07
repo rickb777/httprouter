@@ -1,4 +1,4 @@
-// Copyright 2013 Julien Schmidt. All rights reserved.
+// Copyright 2013 Julien Schmidt & Rick Beton. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be found
 // in the LICENSE file.
 
@@ -17,7 +17,7 @@ func (r *Router) recv(w http.ResponseWriter, req *http.Request) {
 func (r *Router) allowed(path, reqMethod string) (allow string) {
 	if path == "*" { // server-wide
 		for method := range r.trees {
-			if method == "OPTIONS" {
+			if method == OPTIONS {
 				continue
 			}
 
@@ -31,7 +31,7 @@ func (r *Router) allowed(path, reqMethod string) (allow string) {
 	} else { // specific path
 		for method := range r.trees {
 			// Skip the requested method - we already tried this one
-			if method == reqMethod || method == "OPTIONS" {
+			if method == reqMethod || method == OPTIONS {
 				continue
 			}
 
@@ -58,15 +58,24 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		defer r.recv(w, req)
 	}
 
+	method := req.Method
 	path := req.URL.Path
 
-	if root := r.trees[req.Method]; root != nil {
+	if method == HEAD {
+		w = &noOutputResponseWriter{w}
+		if !r.SpecialisedHEAD {
+			method = GET // follow routes defined for GET instead
+		}
+	}
+
+	if root := r.trees[method]; root != nil {
 		if handle, ps, tsr := root.getValue(path); handle != nil {
 			handle.ServeHTTP(w, req.WithContext(WithParams(req.Context(), ps)))
 			return
-		} else if req.Method != "CONNECT" && path != "/" {
+
+		} else if method != CONNECT && path != "/" {
 			code := 301 // Permanent redirect, request with GET method
-			if req.Method != "GET" {
+			if method != GET {
 				// Temporary redirect, request with same method
 				// As of Go 1.3, Go does not support status code 308.
 				code = 307
@@ -97,10 +106,10 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	if req.Method == "OPTIONS" {
+	if method == OPTIONS {
 		// Handle OPTIONS requests
 		if r.HandleOPTIONS {
-			if allow := r.allowed(path, req.Method); len(allow) > 0 {
+			if allow := r.allowed(path, method); len(allow) > 0 {
 				w.Header().Set("Allow", allow)
 				return
 			}
@@ -108,7 +117,7 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	} else {
 		// Handle 405
 		if r.HandleMethodNotAllowed {
-			if allow := r.allowed(path, req.Method); len(allow) > 0 {
+			if allow := r.allowed(path, method); len(allow) > 0 {
 				w.Header().Set("Allow", allow)
 				if r.MethodNotAllowed != nil {
 					r.MethodNotAllowed.ServeHTTP(w, req)
@@ -129,4 +138,23 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	} else {
 		http.NotFound(w, req)
 	}
+}
+
+//-------------------------------------------------------------------------------------------------
+
+type noOutputResponseWriter struct {
+	w http.ResponseWriter
+}
+
+func (hw *noOutputResponseWriter) Header() http.Header {
+	return hw.w.Header()
+}
+
+func (hw *noOutputResponseWriter) Write(b []byte) (int, error) {
+	// byte buffer is silently discarded
+	return len(b), nil
+}
+
+func (hw *noOutputResponseWriter) WriteHeader(code int) {
+	hw.w.WriteHeader(code)
 }
