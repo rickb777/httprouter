@@ -576,13 +576,13 @@ func TestRouter_ServeFiles(t *testing.T) {
 		mfs := &mockFileSystem{}
 
 		recv := catchPanic(func() {
-			router.ServeFiles("/noFilepath", mfs, nil)
+			router.ServeFiles("/noFilepath", mfs)
 		})
 		if recv == nil {
 			t.Fatal("registering path not ending with '*filepath' did not panic")
 		}
 
-		router.ServeFiles("/*filepath", mfs, nil)
+		router.ServeFiles("/*filepath", mfs)
 		w := httptest.NewRecorder()
 		r, _ := http.NewRequest(c, "/favicon.ico", nil)
 		router.ServeHTTP(w, r)
