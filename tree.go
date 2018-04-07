@@ -468,10 +468,10 @@ func (n *node) makePathList(parents []*node, list []string) []string {
 	if len(n.children) == 0 {
 		return list
 
-	} else {
-		for _, c := range n.children {
-			list = c.makePathList(append(parents, n), list)
-		}
+	}
+
+	for _, c := range n.children {
+		list = c.makePathList(append(parents, n), list)
 	}
 
 	sort.Strings(list)
