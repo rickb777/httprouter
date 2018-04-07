@@ -1,4 +1,7 @@
 #!/bin/bash -e
+PATH=$PATH:$GOPATH/bin
+
+[ -n "$(type -p golint)" ] || go get github.com/golang/lint/golint
 
 gofmt -s -w *.go
 go test -v .
