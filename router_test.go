@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"sort"
 	"testing"
 )
 
@@ -467,7 +468,7 @@ func TestRouter_Lookup(t *testing.T) {
 		t.Fatalf("Got handle for unregistered pattern: %v", handle)
 	}
 	if tsr {
-		t.Error("Got wrong TSR recommendation!")
+		t.Error("Got wrong TSR recommendation.")
 	}
 
 	// insert route and try again
@@ -475,11 +476,11 @@ func TestRouter_Lookup(t *testing.T) {
 
 	handle, params, tsr := router.Lookup(GET, "/user/gopher")
 	if handle == nil {
-		t.Fatal("Got no handle!")
+		t.Fatal("Got no handle.")
 	} else {
 		handle.ServeHTTP(nil, nil)
 		if !routed {
-			t.Fatal("Routing failed!")
+			t.Fatal("Routing failed.")
 		}
 	}
 
@@ -492,7 +493,7 @@ func TestRouter_Lookup(t *testing.T) {
 		t.Fatalf("Got handle for unregistered pattern: %v", handle)
 	}
 	if !tsr {
-		t.Error("Got no TSR recommendation!")
+		t.Error("Got no TSR recommendation.")
 	}
 
 	handle, _, tsr = router.Lookup(GET, "/nope")
@@ -500,7 +501,61 @@ func TestRouter_Lookup(t *testing.T) {
 		t.Fatalf("Got handle for unregistered pattern: %v", handle)
 	}
 	if tsr {
-		t.Error("Got wrong TSR recommendation!")
+		t.Error("Got wrong TSR recommendation.")
+	}
+}
+
+func TestRouter_ListPaths(t *testing.T) {
+	router := New()
+
+	routes := []string{
+		"/",
+		"/cmd/:tool/:sub",
+		"/cmd/:tool/",
+		"/src/*filepath",
+		"/search/",
+		"/search/:query",
+		"/user_:name",
+		"/user_:name/about",
+		"/files/:dir/*filepath",
+		"/doc/",
+		"/doc/go_faq.html",
+		"/doc/go1.html",
+		"/info/:user/public",
+		"/info/:user/project/:project",
+	}
+
+	for _, method := range AllMethods {
+		for _, route := range routes {
+			router.Handle(route, fakeHandler(method+" "+route), method)
+		}
+		extra := "/" + method
+		router.Handle(extra, fakeHandler(method+" "+extra), method)
+	}
+
+	//printChildren(router.trees[GET], "")
+
+	all := router.ListPaths("")
+	if len(all) != len(AllMethods) {
+		t.Errorf("Expected %d methods but got %d\n%v", len(AllMethods), len(all), all)
+	}
+
+	for _, method := range AllMethods {
+		actual := all[method]
+		extra := "/" + method
+		expected := append(routes, extra)
+		sort.Strings(expected)
+		if !reflect.DeepEqual(expected, actual) {
+			t.Errorf("\nExpected %v\nbut got  %v", expected, actual)
+		}
+	}
+
+	actual := router.ListPaths(GET)
+	extra := "/GET"
+	expected := append(routes, extra)
+	sort.Strings(expected)
+	if !reflect.DeepEqual(expected, actual[GET]) {
+		t.Errorf("\nExpected %v\nbut got  %v", expected, actual)
 	}
 }
 

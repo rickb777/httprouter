@@ -94,6 +94,24 @@ func (r *Router) Lookup(method, path string) (http.Handler, Params, bool) {
 	return nil, nil, false
 }
 
+// ListPaths allows inspection of the paths known to the router, grouped by method.
+// If method is blank, all registered methods are returned.
+//
+// This is intended for debugging and diagnostics.
+func (r *Router) ListPaths(method string) map[string][]string {
+	result := make(map[string][]string)
+	if method == "" {
+		for m, root := range r.trees {
+			result[m] = root.makePathList(nil, nil)
+		}
+	} else {
+		if root := r.trees[method]; root != nil {
+			result[method] = root.makePathList(nil, nil)
+		}
+	}
+	return result
+}
+
 func (r *Router) allowed(path, reqMethod string) (allow string) {
 	if path == "*" { // server-wide
 		for method := range r.trees {

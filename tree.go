@@ -5,7 +5,10 @@
 package httprouter
 
 import (
+	"bytes"
+	"io"
 	"net/http"
+	"sort"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -449,6 +452,30 @@ walk: // outer loop for walking the tree
 				path == n.path[:len(n.path)-1] && n.handle != nil)
 		return
 	}
+}
+
+func (n *node) makePathList(parents []*node, list []string) []string {
+
+	if n.handle != nil {
+		buf := &bytes.Buffer{}
+		for _, p := range parents {
+			io.WriteString(buf, p.path)
+		}
+		io.WriteString(buf, n.path)
+		list = append(list, buf.String())
+	}
+
+	if len(n.children) == 0 {
+		return list
+
+	} else {
+		for _, c := range n.children {
+			list = c.makePathList(append(parents, n), list)
+		}
+	}
+
+	sort.Strings(list)
+	return list
 }
 
 // Makes a case-insensitive lookup of the given path and tries to find a handler.

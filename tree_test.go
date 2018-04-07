@@ -14,7 +14,7 @@ import (
 )
 
 func printChildren(n *node, prefix string) {
-	fmt.Printf(" %02d:%02d %s%s[%d] %v %t %d \r\n", n.priority, n.maxParams, prefix, n.path, len(n.children), n.handle, n.wildChild, n.nType)
+	fmt.Printf(" %02d:%02d %s%s [%d] %v %t %d\n", n.priority, n.maxParams, prefix, n.path, len(n.children), n.handle, n.wildChild, n.nType)
 	for l := len(n.path); l > 0; l-- {
 		prefix += " "
 	}
@@ -177,6 +177,7 @@ func TestTreeWildcard(t *testing.T) {
 	}
 
 	//printChildren(tree, "")
+	//fmt.Printf("%v\n", tree.makePathList(nil, nil))
 
 	checkRequests(t, tree, testRequests{
 		{"/", false, "/", nil},
@@ -529,7 +530,7 @@ func TestTreeFindCaseInsensitivePath(t *testing.T) {
 	for _, route := range routes {
 		out, found := tree.findCaseInsensitivePath(route, true)
 		if !found {
-			t.Errorf("Route '%s' not found!", route)
+			t.Errorf("Route '%s' not found.", route)
 		} else if string(out) != route {
 			t.Errorf("Wrong result for route '%s': %s", route, string(out))
 		}
@@ -538,7 +539,7 @@ func TestTreeFindCaseInsensitivePath(t *testing.T) {
 	for _, route := range routes {
 		out, found := tree.findCaseInsensitivePath(route, false)
 		if !found {
-			t.Errorf("Route '%s' not found!", route)
+			t.Errorf("Route '%s' not found.", route)
 		} else if string(out) != route {
 			t.Errorf("Wrong result for route '%s': %s", route, string(out))
 		}
