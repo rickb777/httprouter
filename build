@@ -6,3 +6,4 @@ PATH=$PATH:$GOPATH/bin
 gofmt -s -w *.go
 go test -v .
 golint .
+go vet ./...

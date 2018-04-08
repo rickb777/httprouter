@@ -95,18 +95,46 @@ func TestRouter_API_using_automatic_HEAD(t *testing.T) {
 
 	w := httptest.NewRecorder()
 
-	for _, m := range []string{GET, PUT, POST, PATCH, OPTIONS, DELETE} {
-		r, _ := http.NewRequest(m, "/", nil)
-		router.ServeHTTP(w, r)
-		if !get {
-			t.Errorf("routing %s failed", m)
-		}
+	r, _ := http.NewRequest(GET, "/", nil)
+	router.ServeHTTP(w, r)
+	if !get {
+		t.Error("routing GET failed")
 	}
 
-	r, _ := http.NewRequest(HEAD, "/", nil)
+	r, _ = http.NewRequest(HEAD, "/", nil)
 	router.ServeHTTP(w, r)
 	if head { // <-- N.B.
 		t.Error("routing HEAD failed")
+	}
+
+	r, _ = http.NewRequest(OPTIONS, "/", nil)
+	router.ServeHTTP(w, r)
+	if !options {
+		t.Error("routing OPTIONS failed")
+	}
+
+	r, _ = http.NewRequest(POST, "/", nil)
+	router.ServeHTTP(w, r)
+	if !post {
+		t.Error("routing POST failed")
+	}
+
+	r, _ = http.NewRequest(PUT, "/", nil)
+	router.ServeHTTP(w, r)
+	if !put {
+		t.Error("routing PUT failed")
+	}
+
+	r, _ = http.NewRequest(PATCH, "/", nil)
+	router.ServeHTTP(w, r)
+	if !patch {
+		t.Error("routing PATCH failed")
+	}
+
+	r, _ = http.NewRequest(DELETE, "/", nil)
+	router.ServeHTTP(w, r)
+	if !delete {
+		t.Error("routing DELETE failed")
 	}
 
 	r, _ = http.NewRequest(GET, "/Handler", nil)
@@ -158,15 +186,49 @@ func TestRouter_API_using_specialised_HEAD(t *testing.T) {
 
 	w := httptest.NewRecorder()
 
-	for _, m := range []string{GET, HEAD, PUT, POST, PATCH, OPTIONS, DELETE} {
-		r, _ := http.NewRequest(m, "/", nil)
-		router.ServeHTTP(w, r)
-		if !get {
-			t.Errorf("routing %s failed", m)
-		}
+	r, _ := http.NewRequest(GET, "/", nil)
+	router.ServeHTTP(w, r)
+	if !get {
+		t.Error("routing GET failed")
 	}
 
-	r, _ := http.NewRequest(GET, "/Handler", nil)
+	r, _ = http.NewRequest(HEAD, "/", nil)
+	router.ServeHTTP(w, r)
+	if !head {
+		t.Error("routing HEAD failed")
+	}
+
+	r, _ = http.NewRequest(OPTIONS, "/", nil)
+	router.ServeHTTP(w, r)
+	if !options {
+		t.Error("routing OPTIONS failed")
+	}
+
+	r, _ = http.NewRequest(POST, "/", nil)
+	router.ServeHTTP(w, r)
+	if !post {
+		t.Error("routing POST failed")
+	}
+
+	r, _ = http.NewRequest(PUT, "/", nil)
+	router.ServeHTTP(w, r)
+	if !put {
+		t.Error("routing PUT failed")
+	}
+
+	r, _ = http.NewRequest(PATCH, "/", nil)
+	router.ServeHTTP(w, r)
+	if !patch {
+		t.Error("routing PATCH failed")
+	}
+
+	r, _ = http.NewRequest(DELETE, "/", nil)
+	router.ServeHTTP(w, r)
+	if !delete {
+		t.Error("routing DELETE failed")
+	}
+
+	r, _ = http.NewRequest(GET, "/Handler", nil)
 	router.ServeHTTP(w, r)
 	if !handler {
 		t.Error("routing Handler failed")
