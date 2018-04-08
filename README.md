@@ -28,7 +28,9 @@ The router is optimized for high performance and a small memory footprint. It sc
 
 Of course you can also set **custom [`NotFound`](https://godoc.org/github.com/rickb777/httprouter#Router.NotFound) and [`MethodNotAllowed`](https://godoc.org/github.com/rickb777/httprouter#Router.MethodNotAllowed) handlers**.
 
-You can [**serve static files**](https://godoc.org/github.com/rickb777/httprouter#Router.ServeFiles) with a the standard http.ServeFiles or a custom [`FileServer`](https://godoc.org/github.com/rickb777/httprouter#Router.FileServer).
+You can [**serve static files**](https://godoc.org/github.com/rickb777/httprouter#Router.ServeFiles) with a the standard http.ServeFiles or a custom file server.
+
+You can [**chain routers**](https://godoc.org/github.com/rickb777/httprouter#Router.SubRouter) to allow more complex structures, including intermediate middleware on a sub-set of the routes. This is also useful for attaching as many custom asset servers as you need.
 
 ## Usage
 

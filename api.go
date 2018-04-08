@@ -189,19 +189,21 @@ func (r *Router) HandleFunc(path string, handler http.HandlerFunc, methods ...st
 // an asset handler but could be any handler, including another Router. The request URIs
 // seen by the handler will have been shortened by the removal of path from their start.
 //
-// The path must end with "/" or "/*filepath". For example if path is "/a/b/" and the request
-// URI path is "/a/b/foo", the handler will see a request for "/foo".
+// The path must end with "/*filepath" (or simply "/*" is allowed in this case). If trimLeft
+// is true, the attached handler sees the sub-path only. For example if path is "/a/b/"
+// and the request URI path is "/a/b/foo", the handler will see a request for "/foo".
 //
 // If no methods are specified, all methods will be supported. Otherwise, only the
 // specified methods will be supported.
-func (r *Router) SubRouter(path string, fileServer http.Handler, methods ...string) {
-	if strings.HasSuffix(path, "/") {
-		if strings.IndexByte(path, '*') > 0 {
-			panic("'" + path + "' - path must end with / or /*filepath")
-		}
-		path = path + "*filepath"
+func (r *Router) SubRouter(path string, trimLeft bool, handler http.Handler, methods ...string) {
+	if strings.HasSuffix(path, "/*") {
+		path = path + "filepath"
 	} else if !strings.HasSuffix(path, "/*filepath") {
-		panic("'" + path + "' - path must end with / or /*filepath")
+		panic("'" + path + "' - path must end with /* or /*filepath")
+	}
+
+	if strings.IndexByte(path[:len(path)-9], '*') > 0 {
+		panic("'" + path + "' - path must contain only one *")
 	}
 
 	if len(methods) == 0 {
@@ -210,21 +212,24 @@ func (r *Router) SubRouter(path string, fileServer http.Handler, methods ...stri
 
 	r.Handle(path, http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		ps := GetParams(req.Context())
-		req.URL.Path = ps.ByName("filepath")
-		fileServer.ServeHTTP(w, req)
+		if trimLeft {
+			req.URL.Path = ps.ByName("filepath")
+		}
+		handler.ServeHTTP(w, req)
 	}), methods...)
 }
 
 // ServeFiles serves files from the given file system root using the http.FileServer
-// handler. Note that http.NotFound is used instead of the Router's NotFound handler.
+// handler. Note that http.NotFound is used instead of the Router's NotFound handler;
+// if this is inconvenient, consider using SubRouter with your own file server instead.
 //
-// The path must end with "/" or "/*filepath", files are then served from the local
-// path /defined/root/dir/*filepath.
+// The path must end with "/*filepath" (or simply "/*" is allowed in this case), files
+// are then served from the local path /defined/root/dir/*filepath.
 //
 // For example if root is "/etc" and *filepath is "passwd", the local file
 // "/etc/passwd" would be served.
 //
-// Both GET and HEAD methods are supported.
+// Both GET and HEAD methods are supported, but no other methods.
 //
 // To use the operating system's file system implementation,
 // use http.Dir:
@@ -234,7 +239,7 @@ func (r *Router) ServeFiles(path string, root http.FileSystem) {
 	if r.SpecialisedHEAD {
 		methods = []string{GET, HEAD}
 	}
-	r.SubRouter(path, http.FileServer(root), methods...)
+	r.SubRouter(path, true, http.FileServer(root), methods...)
 }
 
 // Lookup allows the manual lookup of a method + path combo.

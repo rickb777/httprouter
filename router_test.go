@@ -61,7 +61,7 @@ func (h handlerStruct) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	*h.handled = true
 }
 
-func TestRouterAPI_using_automatic_HEAD(t *testing.T) {
+func TestRouter_API_using_automatic_HEAD(t *testing.T) {
 	var get, head, options, post, put, patch, delete, handler, handlerFunc bool
 
 	httpHandler := handlerStruct{&handler}
@@ -122,7 +122,7 @@ func TestRouterAPI_using_automatic_HEAD(t *testing.T) {
 	}
 }
 
-func TestRouterAPI_using_specialised_HEAD(t *testing.T) {
+func TestRouter_API_using_specialised_HEAD(t *testing.T) {
 	var get, head, options, post, put, patch, delete, handler, handlerFunc bool
 
 	httpHandler := handlerStruct{&handler}
@@ -179,7 +179,7 @@ func TestRouterAPI_using_specialised_HEAD(t *testing.T) {
 	}
 }
 
-func TestRouterHandleAll(t *testing.T) {
+func TestRouter_HandleAll(t *testing.T) {
 	var saw = make(map[string]struct{})
 
 	router := New()
@@ -198,7 +198,7 @@ func TestRouterHandleAll(t *testing.T) {
 	}
 }
 
-func TestRouterRoot(t *testing.T) {
+func TestRouter_Root(t *testing.T) {
 	router := New()
 	recv := catchPanic(func() {
 		router.GET("noSlashRoot", nil)
@@ -208,7 +208,7 @@ func TestRouterRoot(t *testing.T) {
 	}
 }
 
-func TestRouterChaining(t *testing.T) {
+func TestRouter_Chaining(t *testing.T) {
 	router1 := New()
 	router2 := New()
 	router1.NotFound = router2
@@ -250,7 +250,7 @@ func TestRouterChaining(t *testing.T) {
 	}
 }
 
-func TestRouterOPTIONS(t *testing.T) {
+func TestRouter_OPTIONS(t *testing.T) {
 	handlerFunc := http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {})
 
 	router := New()
@@ -340,7 +340,7 @@ func TestRouterOPTIONS(t *testing.T) {
 	}
 }
 
-func TestRouterNotAllowed(t *testing.T) {
+func TestRouter_MethodNotAllowed(t *testing.T) {
 	handlerFunc := http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {})
 
 	router := New()
@@ -389,7 +389,7 @@ func TestRouterNotAllowed(t *testing.T) {
 	}
 }
 
-func TestRouterNotFound(t *testing.T) {
+func TestRouter_NotFound(t *testing.T) {
 	handlerFunc := http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {})
 
 	router := New()
@@ -454,7 +454,7 @@ func TestRouterNotFound(t *testing.T) {
 	}
 }
 
-func TestRouterPanicHandler(t *testing.T) {
+func TestRouter_PanicHandler(t *testing.T) {
 	router := New()
 	panicHandled := false
 
@@ -598,13 +598,13 @@ func (mfs *mockFileSystem) Open(name string) (http.File, error) {
 }
 
 func TestRouter_SubRouter_panics(t *testing.T) {
-	cases := []string{"/noFilepath", "/foo*/"}
+	cases := []string{"/noFilepath", "/foo*/*", "/foo*/*filepath", "/foo/"}
 
 	for _, c := range cases {
 		router := New()
 
 		recv := catchPanic(func() {
-			router.SubRouter(c, NewStubHandler())
+			router.SubRouter(c, false, NewStubHandler())
 		})
 		if recv == nil {
 			t.Errorf("%s: registering path not ending with '*filepath' did not panic", c)
