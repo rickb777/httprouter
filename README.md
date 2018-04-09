@@ -26,11 +26,11 @@ The router is optimized for high performance and a small memory footprint. It sc
 
 **Automatic HEAD requests:** All routes set up for GET requests are also used for HEAD requests, although this behaviour can be overridden. Responses from HEAD requests are always zero-length.
 
+**Chain routers:** using a [subrouter](https://godoc.org/github.com/rickb777/httprouter#Router.SubRouter) to allow more complex structures, including intermediate middleware on a sub-set of the routes. This is also useful for attaching as many custom asset servers as you need.
+
 Of course you can also set **custom [`NotFound`](https://godoc.org/github.com/rickb777/httprouter#Router.NotFound) and [`MethodNotAllowed`](https://godoc.org/github.com/rickb777/httprouter#Router.MethodNotAllowed) handlers**.
 
-You can [**serve static files**](https://godoc.org/github.com/rickb777/httprouter#Router.ServeFiles) with a the standard http.ServeFiles or a custom file server.
-
-You can [**chain routers**](https://godoc.org/github.com/rickb777/httprouter#Router.SubRouter) to allow more complex structures, including intermediate middleware on a sub-set of the routes. This is also useful for attaching as many custom asset servers as you need.
+You can [**serve static files**](https://godoc.org/github.com/rickb777/httprouter#Router.ServeFiles) with a the standard http.ServeFiles or a custom file server (e.g. [servefiles](https://github.com/rickb777/servefiles)).
 
 ## Usage
 
@@ -95,6 +95,8 @@ Pattern: /src/*filepath
  /src/somefile.go          match
  /src/subdir/somefile.go   match
 ```
+
+As a special case, the SubRouter and ServeFiles methods also recognise the alternative pattern `.../*` at the end of their path (the implicit catch-all parameter is always `*filepath`).
 
 ## How does it work?
 
