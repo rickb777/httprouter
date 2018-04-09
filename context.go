@@ -29,6 +29,10 @@ type paramsKey struct{}
 
 // WithParams adds the params into the context. A modified context is returned.
 func WithParams(parent context.Context, ps Params) context.Context {
+	existing, exists := parent.Value(paramsKey{}).(Params)
+	if exists {
+		return context.WithValue(parent, paramsKey{}, append(existing, ps...))
+	}
 	return context.WithValue(parent, paramsKey{}, ps)
 }
 

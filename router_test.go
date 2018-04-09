@@ -30,14 +30,21 @@ func TestParams(t *testing.T) {
 	}
 }
 
-func TestRouter(t *testing.T) {
-	router := New()
+func TestRouter_nested_handler_with_params_at_both_levels(t *testing.T) {
+	r1 := New()
+	r2 := New()
 
 	routed := false
-	router.Handle("/user/:name", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+	r2.SubRouter("/top/:top/*", r1)
+	r1.Handle("/user/:name", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ps := GetParams(r.Context())
 		routed = true
-		want := Params{Param{"name", "gopher"}}
+		want := Params{
+			Param{"top", "rank"},
+			Param{"filepath", "/user/gopher"},
+			Param{"name", "gopher"},
+		}
 		if !reflect.DeepEqual(ps, want) {
 			t.Fatalf("wrong wildcard values: want %v, got %v", want, ps)
 		}
@@ -45,8 +52,8 @@ func TestRouter(t *testing.T) {
 
 	w := httptest.NewRecorder()
 
-	req, _ := http.NewRequest(GET, "/user/gopher", nil)
-	router.ServeHTTP(w, req)
+	req, _ := http.NewRequest(GET, "/top/rank/user/gopher", nil)
+	r2.ServeHTTP(w, req)
 
 	if !routed {
 		t.Fatal("routing failed")
