@@ -666,7 +666,7 @@ func TestRouter_SubRouter_panics(t *testing.T) {
 		router := New()
 
 		recv := catchPanic(func() {
-			router.SubRouter(c, false, NewStubHandler())
+			router.SubRouter(c, NewStubHandler())
 		})
 		if recv == nil {
 			t.Errorf("%s: registering path not ending with '*filepath' did not panic", c)
