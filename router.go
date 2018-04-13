@@ -61,11 +61,8 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	method := req.Method
 	path := req.URL.Path
 
-	if method == HEAD {
-		w = &noOutputResponseWriter{w}
-		if !r.SpecialisedHEAD {
-			method = GET // follow routes defined for GET instead
-		}
+	if method == HEAD && !r.SpecialisedHEAD {
+		method = GET // follow routes defined for GET instead
 	}
 
 	if root := r.trees[method]; root != nil {
@@ -138,23 +135,4 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	} else {
 		http.NotFound(w, req)
 	}
-}
-
-//-------------------------------------------------------------------------------------------------
-
-type noOutputResponseWriter struct {
-	w http.ResponseWriter
-}
-
-func (hw *noOutputResponseWriter) Header() http.Header {
-	return hw.w.Header()
-}
-
-func (hw *noOutputResponseWriter) Write(b []byte) (int, error) {
-	// byte buffer is silently discarded
-	return len(b), nil
-}
-
-func (hw *noOutputResponseWriter) WriteHeader(code int) {
-	hw.w.WriteHeader(code)
 }
