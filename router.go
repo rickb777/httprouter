@@ -17,7 +17,7 @@ func (r *Router) recv(w http.ResponseWriter, req *http.Request) {
 func (r *Router) allowed(path, reqMethod string) (allow string) {
 	if path == "*" { // server-wide
 		for method := range r.trees {
-			if method == OPTIONS {
+			if method == http.MethodOptions {
 				continue
 			}
 
@@ -31,7 +31,7 @@ func (r *Router) allowed(path, reqMethod string) (allow string) {
 	} else { // specific path
 		for method := range r.trees {
 			// Skip the requested method - we already tried this one
-			if method == reqMethod || method == OPTIONS {
+			if method == reqMethod || method == http.MethodOptions {
 				continue
 			}
 
@@ -61,7 +61,7 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	method := req.Method
 	path := req.URL.Path
 
-	if method == HEAD && !r.SpecialisedHEAD {
+	if method == HEAD && r.trees[HEAD] == nil {
 		method = GET // follow routes defined for GET instead
 	}
 
@@ -103,13 +103,11 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	if method == OPTIONS {
+	if method == OPTIONS && r.HandleOPTIONS {
 		// Handle OPTIONS requests
-		if r.HandleOPTIONS {
-			if allow := r.allowed(path, method); len(allow) > 0 {
-				w.Header().Set("Allow", allow)
-				return
-			}
+		if allow := r.allowed(path, method); len(allow) > 0 {
+			w.Header().Set("Allow", allow)
+			return
 		}
 	} else {
 		// Handle 405

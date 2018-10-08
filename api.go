@@ -33,11 +33,6 @@ type Router struct {
 	// RedirectTrailingSlash is independent of this option.
 	RedirectFixedPath bool
 
-	// SpecialisedHEAD allows HEAD routes to be different from the GET routes.
-	// The default behaviour, when this flag is false, is for all HEAD requests
-	// to automatically use the same routing rules defined for GET.
-	SpecialisedHEAD bool
-
 	// If enabled, the router checks if another method is allowed for the
 	// current route, if the current request can not be routed.
 	// If this is the case, the request is answered with 'Method Not Allowed'
@@ -62,8 +57,8 @@ type Router struct {
 	// is called.
 	MethodNotAllowed http.Handler
 
-	// A function to handle panics recovered from http handlers. It should be used
-	// to generate an error page and return the http error code 500 (Internal
+	// PanicHandler is a function to handle panics recovered from http handlers. It should
+	// be used to generate an error page and return the http error code 500 (Internal
 	// Server Error).
 	//
 	// The handler can be used to keep your server from crashing because of
@@ -89,52 +84,52 @@ func New() *Router {
 
 // Specify the main HTTP verbs.
 const (
-	GET     = "GET"
-	PUT     = "PUT"
-	HEAD    = "HEAD"
-	POST    = "POST"
-	DELETE  = "DELETE"
-	PATCH   = "PATCH"
-	CONNECT = "CONNECT"
-	OPTIONS = "OPTIONS"
-	TRACE   = "TRACE" // a diganostic method rarely used
+	GET     = http.MethodGet
+	PUT     = http.MethodPut
+	HEAD    = http.MethodHead
+	POST    = http.MethodPost
+	DELETE  = http.MethodDelete
+	PATCH   = http.MethodPatch
+	CONNECT = http.MethodConnect
+	OPTIONS = http.MethodOptions
+	TRACE   = http.MethodTrace // a diganostic method rarely used
 )
 
 // GET is a shortcut for router.Handle(path, handle, "GET")
 func (r *Router) GET(path string, handle http.Handler) {
-	r.Handle(path, handle, GET)
+	r.Handle(GET, path, handle)
 }
 
 // HEAD is a shortcut for router.Handle(path, handle, "HEAD")
 // Note that Router.SpecialisedHEAD flag must be set true;
 // otherwise the route defined here will be ignored.
 func (r *Router) HEAD(path string, handle http.Handler) {
-	r.Handle(path, handle, HEAD)
+	r.Handle(HEAD, path, handle)
 }
 
 // OPTIONS is a shortcut for router.Handle(path, handle, "OPTIONS")
 func (r *Router) OPTIONS(path string, handle http.Handler) {
-	r.Handle(path, handle, OPTIONS)
+	r.Handle(OPTIONS, path, handle)
 }
 
 // POST is a shortcut for router.Handle(path, handle, "POST")
 func (r *Router) POST(path string, handle http.Handler) {
-	r.Handle(path, handle, POST)
+	r.Handle(POST, path, handle)
 }
 
 // PUT is a shortcut for router.Handle(path, handle, "PUT")
 func (r *Router) PUT(path string, handle http.Handler) {
-	r.Handle(path, handle, PUT)
+	r.Handle(PUT, path, handle)
 }
 
 // PATCH is a shortcut for router.Handle(path, handle, "PATCH")
 func (r *Router) PATCH(path string, handle http.Handler) {
-	r.Handle(path, handle, PATCH)
+	r.Handle(PATCH, path, handle)
 }
 
 // DELETE is a shortcut for router.Handle(path, handle, "DELETE")
 func (r *Router) DELETE(path string, handle http.Handler) {
-	r.Handle(path, handle, DELETE)
+	r.Handle(DELETE, path, handle)
 }
 
 // AllMethods is a list of all the 'normal' HTTP methods,
@@ -145,13 +140,18 @@ func (r *Router) DELETE(path string, handle http.Handler) {
 // However, you can change it if you need a different set of methods.
 var AllMethods = []string{HEAD, GET, PUT, POST, DELETE, PATCH, OPTIONS}
 
-// HandleAll registers a new request handle with the given path and all method listed
-// in AllMethods.
-func (r *Router) HandleAll(path string, handler http.Handler) {
-	r.Handle(path, handler, AllMethods...)
+// HandleAll registers a new request handle with the given path and all methods listed.
+// If no methods are specified, then by default AllMethods will be used.
+func (r *Router) HandleAll(path string, handler http.Handler, methods ...string) {
+	if len(methods) == 0 {
+		methods = AllMethods
+	}
+	for _, m := range methods {
+		r.Handle(m, path, handler)
+	}
 }
 
-// Handle registers a new request handler with the given path and method(s).
+// Handle registers a new request handler with the given path and method.
 // If no methods are specified, "GET" only is assumed (although HEAD is also
 // implicitly supported unless Router.SpecialisedHEAD is set).
 //
@@ -160,7 +160,7 @@ func (r *Router) HandleAll(path string, handler http.Handler) {
 //
 // The handler sees the original request URI unaltered; see also SubRouter for
 // a different capability.
-func (r *Router) Handle(path string, handler http.Handler, methods ...string) {
+func (r *Router) Handle(method, path string, handler http.Handler) {
 	if len(path) == 0 || path[0] != '/' {
 		panic("path must begin with '/' in path '" + path + "'")
 	}
@@ -169,28 +169,28 @@ func (r *Router) Handle(path string, handler http.Handler, methods ...string) {
 		r.trees = make(map[string]*node)
 	}
 
-	if len(methods) == 0 {
-		methods = []string{GET}
+	root := r.trees[method]
+	if root == nil {
+		root = new(node)
+		r.trees[method] = root
 	}
 
-	for _, method := range methods {
-		root := r.trees[method]
-		if root == nil {
-			root = new(node)
-			r.trees[method] = root
-		}
-
-		root.addRoute(path, handler)
-	}
+	root.addRoute(path, handler)
 }
 
 // HandleFunc is an adapter which allows the use of an http.HandleFunc as a
 // request handler.
+func (r *Router) HandleFunc(method, path string, handler http.HandlerFunc) {
+	r.Handle(method, path, handler)
+}
+
+// HandleFuncAll is an adapter which allows the use of an http.HandleFunc as a
+// request handler with a set of methods.
 //
 // If no methods are specified, "GET" only is assumed (although HEAD is also
 // implicitly supported unless Router.SpecialisedHEAD is set).
-func (r *Router) HandleFunc(path string, handler http.HandlerFunc, methods ...string) {
-	r.Handle(path, handler, methods...)
+func (r *Router) HandleFuncAll(path string, handler http.HandlerFunc, methods ...string) {
+	r.HandleAll(path, handler, methods...)
 }
 
 // SubRouter registers a new request handler with the given path and method(s), trimming
@@ -200,8 +200,8 @@ func (r *Router) HandleFunc(path string, handler http.HandlerFunc, methods ...st
 // attached handler sees the sub-path only. For example if path is "/a/b/" and the
 // request URI path is "/a/b/foo", the handler will see a request for "/foo".
 //
-// If no methods are specified, all methods will be supported. Otherwise, only the
-// specified methods will be supported.
+// If no methods are specified, all methods (in AllMethods) will be supported. Otherwise,
+// only the specified methods will be supported.
 //
 // If you don't want the prefix trimmed, instead use Handle with a path that ends with
 // ".../*name" (for some name of your choice).
@@ -220,7 +220,7 @@ func (r *Router) SubRouter(path string, handler http.Handler, methods ...string)
 		methods = AllMethods
 	}
 
-	r.Handle(path, http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+	r.HandleAll(path, http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		ps := GetParams(req.Context())
 		req.URL.Path = ps.ByName("filepath")
 		handler.ServeHTTP(w, req)
@@ -229,7 +229,8 @@ func (r *Router) SubRouter(path string, handler http.Handler, methods ...string)
 
 // ServeFiles serves files from the given file system root using the http.FileServer
 // handler. Note that http.NotFound is used instead of the Router's NotFound handler;
-// if this is inconvenient, consider using SubRouter with your own file server instead.
+// if this is inconvenient, consider using SubRouter with your own file server instead
+// (see https://github.com/rickb777/servefiles for example).
 //
 // The path must end with "/*filepath" (or simply "/*" is allowed in this case), files
 // are then served from the local path /defined/root/dir/*filepath.
@@ -243,11 +244,7 @@ func (r *Router) SubRouter(path string, handler http.Handler, methods ...string)
 // use http.Dir:
 //     router.ServeFiles("/src/*filepath", http.Dir("/var/www"))
 func (r *Router) ServeFiles(path string, root http.FileSystem) {
-	methods := []string{GET}
-	if r.SpecialisedHEAD {
-		methods = []string{GET, HEAD}
-	}
-	r.SubRouter(path, http.FileServer(root), methods...)
+	r.SubRouter(path, http.FileServer(root), GET, HEAD)
 }
 
 // Lookup allows the manual lookup of a method + path combo.

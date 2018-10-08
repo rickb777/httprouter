@@ -296,7 +296,6 @@ func TestTreeDupliatePath(t *testing.T) {
 		if recv == nil {
 			t.Fatalf("no panic while inserting duplicate route '%s", route)
 		}
-		//
 	}
 
 	//printChildren(tree, "")
