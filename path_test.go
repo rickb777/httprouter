@@ -6,6 +6,7 @@
 package httprouter
 
 import (
+	. "github.com/onsi/gomega"
 	"runtime"
 	"testing"
 )
@@ -65,13 +66,10 @@ var cleanTests = []struct {
 }
 
 func TestPathClean(t *testing.T) {
+	g := NewGomegaWithT(t)
 	for _, test := range cleanTests {
-		if s := CleanPath(test.path); s != test.result {
-			t.Errorf("CleanPath(%q) = %q, want %q", test.path, s, test.result)
-		}
-		if s := CleanPath(test.result); s != test.result {
-			t.Errorf("CleanPath(%q) = %q, want %q", test.result, s, test.result)
-		}
+		g.Expect(CleanPath(test.path)).To(Equal(test.result))
+		g.Expect(CleanPath(test.result)).To(Equal(test.result))
 	}
 }
 
@@ -79,15 +77,11 @@ func TestPathCleanMallocs(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping malloc count in short mode")
 	}
-	if runtime.GOMAXPROCS(0) > 1 {
-		t.Log("skipping AllocsPerRun checks; GOMAXPROCS>1")
-		return
-	}
+	runtime.GOMAXPROCS(1)
 
+	g := NewGomegaWithT(t)
 	for _, test := range cleanTests {
 		allocs := testing.AllocsPerRun(100, func() { CleanPath(test.result) })
-		if allocs > 0 {
-			t.Errorf("CleanPath(%q): %v allocs, want zero", test.result, allocs)
-		}
+		g.Expect(allocs).To(BeZero())
 	}
 }

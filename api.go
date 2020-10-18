@@ -6,28 +6,41 @@ package httprouter
 
 import (
 	"net/http"
-	"strings"
+	"sync"
 )
+
+// Handle is a function that can be registered to a route to handle HTTP
+// requests. Like http.HandlerFunc, but has a third parameter for the values of
+// wildcards (path variables).
+type Handle func(http.ResponseWriter, *http.Request, Params)
 
 // Router is a http.Handler which can be used to dispatch requests to different
 // handler functions via configurable routes
 type Router struct {
 	trees map[string]*node
 
+	paramsPool sync.Pool
+	maxParams  uint16
+
+	// If enabled, adds the matched route path onto the http.Request context
+	// before invoking the handler.
+	// The matched route path is only added to handlers of routes that were
+	// registered when this option was enabled.
+	SaveMatchedRoutePath bool
+
 	// Enables automatic redirection if the current route can't be matched but a
 	// handler for the path with (without) the trailing slash exists.
 	// For example if /foo/ is requested but a route only exists for /foo, the
 	// client is redirected to /foo with http status code 301 for GET requests
-	// and 307 for all other request methods.
+	// and 308 for all other request methods.
 	RedirectTrailingSlash bool
 
 	// If enabled, the router tries to fix the current request path, if no
-	// handler is registered for it.
+	// handle is registered for it.
 	// First superfluous path elements like ../ or // are removed.
 	// Afterwards the router does a case-insensitive lookup of the cleaned path.
-	//
-	// If a handler can be found for this route, the router makes a redirection
-	// to the corrected path with status code 301 for GET requests and 307 for
+	// If a handle can be found for this route, the router makes a redirection
+	// to the corrected path with status code 301 for GET requests and 308 for
 	// all other request methods.
 	// For example /FOO and /..//Foo could be redirected to /foo.
 	// RedirectTrailingSlash is independent of this option.
@@ -44,6 +57,15 @@ type Router struct {
 	// If enabled, the router automatically replies to OPTIONS requests.
 	// Custom OPTIONS handlers take priority over automatic replies.
 	HandleOPTIONS bool
+
+	// An optional http.Handler that is called on automatic OPTIONS requests.
+	// The handler is only called if HandleOPTIONS is true and no OPTIONS
+	// handler for the specific path was set.
+	// The "Allowed" header is set before calling the handler.
+	GlobalOPTIONS http.Handler
+
+	// Cached value of global (*) allowed methods
+	globalAllowed string
 
 	// Configurable http.Handler which is called when no matching route is
 	// found. Also use this if you need to cascade to another router (perhaps
@@ -65,7 +87,7 @@ type Router struct {
 	// unrecovered panics. If a panic occurs and this handler is defined, the
 	// built-in recover() function obtains the cause and it is passed to the
 	// third parameter of this function.
-	PanicHandler func(w http.ResponseWriter, req *http.Request, rcv interface{})
+	PanicHandler func(http.ResponseWriter, *http.Request, interface{})
 }
 
 // Make sure the Router conforms with the http.Handler interface
@@ -82,87 +104,96 @@ func New() *Router {
 	}
 }
 
-// Specify the main HTTP verbs.
-const (
-	GET     = http.MethodGet
-	PUT     = http.MethodPut
-	HEAD    = http.MethodHead
-	POST    = http.MethodPost
-	DELETE  = http.MethodDelete
-	PATCH   = http.MethodPatch
-	CONNECT = http.MethodConnect
-	OPTIONS = http.MethodOptions
-	TRACE   = http.MethodTrace // a diganostic method rarely used
-)
-
-// GET is a shortcut for router.Handle(path, handle, "GET")
-func (r *Router) GET(path string, handle http.Handler) {
-	r.Handle(GET, path, handle)
+func (r *Router) getParams() *Params {
+	ps, _ := r.paramsPool.Get().(*Params)
+	*ps = (*ps)[0:0] // reset slice
+	return ps
 }
 
-// HEAD is a shortcut for router.Handle(path, handle, "HEAD")
-// Note that Router.SpecialisedHEAD flag must be set true;
-// otherwise the route defined here will be ignored.
-func (r *Router) HEAD(path string, handle http.Handler) {
-	r.Handle(HEAD, path, handle)
-}
-
-// OPTIONS is a shortcut for router.Handle(path, handle, "OPTIONS")
-func (r *Router) OPTIONS(path string, handle http.Handler) {
-	r.Handle(OPTIONS, path, handle)
-}
-
-// POST is a shortcut for router.Handle(path, handle, "POST")
-func (r *Router) POST(path string, handle http.Handler) {
-	r.Handle(POST, path, handle)
-}
-
-// PUT is a shortcut for router.Handle(path, handle, "PUT")
-func (r *Router) PUT(path string, handle http.Handler) {
-	r.Handle(PUT, path, handle)
-}
-
-// PATCH is a shortcut for router.Handle(path, handle, "PATCH")
-func (r *Router) PATCH(path string, handle http.Handler) {
-	r.Handle(PATCH, path, handle)
-}
-
-// DELETE is a shortcut for router.Handle(path, handle, "DELETE")
-func (r *Router) DELETE(path string, handle http.Handler) {
-	r.Handle(DELETE, path, handle)
-}
-
-// AllMethods is a list of all the 'normal' HTTP methods,
-// i.e. HEAD, GET, PUT, POST, DELETE, PATCH, OPTIONS.
-//
-// It does not include CONNECT or TRACE by default.
-// It doesn't include methods used by extension protocols such as WebDav.
-// However, you can change it if you need a different set of methods.
-var AllMethods = []string{HEAD, GET, PUT, POST, DELETE, PATCH, OPTIONS}
-
-// HandleAll registers a new request handle with the given path and all methods listed.
-// If no methods are specified, then by default AllMethods will be used.
-func (r *Router) HandleAll(path string, handler http.Handler, methods ...string) {
-	if len(methods) == 0 {
-		methods = AllMethods
-	}
-	for _, m := range methods {
-		r.Handle(m, path, handler)
+func (r *Router) putParams(ps *Params) {
+	if ps != nil {
+		r.paramsPool.Put(ps)
 	}
 }
 
-// Handle registers a new request handler with the given path and method.
-// If no methods are specified, "GET" only is assumed (although HEAD is also
-// implicitly supported unless Router.SpecialisedHEAD is set).
+func (r *Router) saveMatchedRoutePath(path string, handle Handle) Handle {
+	return func(w http.ResponseWriter, req *http.Request, ps Params) {
+		if ps == nil {
+			psp := r.getParams()
+			ps = (*psp)[0:1]
+			ps[0] = Param{Key: MatchedRoutePathParam, Value: path}
+			handle(w, req, ps)
+			r.putParams(psp)
+		} else {
+			ps = append(ps, Param{Key: MatchedRoutePathParam, Value: path})
+			handle(w, req, ps)
+		}
+	}
+}
+
+// GET is a shortcut for router.Handle(http.MethodGet, path, handle)
+func (r *Router) GET(path string, handle Handle) {
+	r.Handle(http.MethodGet, path, handle)
+}
+
+// HEAD is a shortcut for router.Handle(http.MethodHead, path, handle). Note
+// that, to follow IETF recommendations, every GET route also provides the
+// default handler for equivalent HEAD requests. So it is only necessary to
+// register HEAD handlers if they are different from or in addition to the
+// GET handlers.
+func (r *Router) HEAD(path string, handle Handle) {
+	r.Handle(http.MethodHead, path, handle)
+}
+
+// OPTIONS is a shortcut for router.Handle(http.MethodOptions, path, handle)
+func (r *Router) OPTIONS(path string, handle Handle) {
+	r.Handle(http.MethodOptions, path, handle)
+}
+
+// POST is a shortcut for router.Handle(http.MethodPost, path, handle)
+func (r *Router) POST(path string, handle Handle) {
+	r.Handle(http.MethodPost, path, handle)
+}
+
+// PUT is a shortcut for router.Handle(http.MethodPut, path, handle)
+func (r *Router) PUT(path string, handle Handle) {
+	r.Handle(http.MethodPut, path, handle)
+}
+
+// PATCH is a shortcut for router.Handle(http.MethodPatch, path, handle)
+func (r *Router) PATCH(path string, handle Handle) {
+	r.Handle(http.MethodPatch, path, handle)
+}
+
+// DELETE is a shortcut for router.Handle(http.MethodDelete, path, handle)
+func (r *Router) DELETE(path string, handle Handle) {
+	r.Handle(http.MethodDelete, path, handle)
+}
+
+// Handle registers a new request handle with the given path and method.
 //
-// Usually the respective shortcut functions (GET, POST, PUT etc) can be used
-// instead of this method.
+// For GET, POST, PUT, PATCH and DELETE requests the respective shortcut
+// functions can be used.
 //
-// The handler sees the original request URI unaltered; see also SubRouter for
-// a different capability.
-func (r *Router) Handle(method, path string, handler http.Handler) {
-	if len(path) == 0 || path[0] != '/' {
+// This function is intended for bulk loading and to allow the usage of less
+// frequently used, non-standardized or custom methods (e.g. for internal
+// communication with a proxy).
+func (r *Router) Handle(method, path string, handle Handle) {
+	varsCount := uint16(0)
+
+	if method == "" {
+		panic("method must not be empty")
+	}
+	if len(path) < 1 || path[0] != '/' {
 		panic("path must begin with '/' in path '" + path + "'")
+	}
+	if handle == nil {
+		panic("handle must not be nil")
+	}
+
+	if r.SaveMatchedRoutePath {
+		varsCount++
+		handle = r.saveMatchedRoutePath(path, handle)
 	}
 
 	if r.trees == nil {
@@ -173,58 +204,37 @@ func (r *Router) Handle(method, path string, handler http.Handler) {
 	if root == nil {
 		root = new(node)
 		r.trees[method] = root
+
+		r.globalAllowed = r.allowed("*", "")
 	}
 
-	root.addRoute(path, handler)
+	root.addRoute(path, handle)
+
+	// Update maxParams
+	if paramsCount := countParams(path); paramsCount+varsCount > r.maxParams {
+		r.maxParams = paramsCount + varsCount
+	}
+
+	// Lazy-init paramsPool alloc func
+	if r.paramsPool.New == nil && r.maxParams > 0 {
+		r.paramsPool.New = func() interface{} {
+			ps := make(Params, 0, r.maxParams)
+			return &ps
+		}
+	}
 }
 
-// HandleFunc is an adapter which allows the use of an http.HandleFunc as a
-// request handler.
-func (r *Router) HandleFunc(method, path string, handler http.HandlerFunc) {
-	r.Handle(method, path, handler)
+// Handler is an adapter which allows the usage of an http.Handler as a
+// request handle.
+// The Params are available in the request context under ParamsKey.
+func (r *Router) Handler(method, path string, handler http.Handler) {
+	r.Handle(method, path, adapter(handler))
 }
 
-// HandleFuncAll is an adapter which allows the use of an http.HandleFunc as a
-// request handler with a set of methods.
-//
-// If no methods are specified, "GET" only is assumed (although HEAD is also
-// implicitly supported unless Router.SpecialisedHEAD is set).
-func (r *Router) HandleFuncAll(path string, handler http.HandlerFunc, methods ...string) {
-	r.HandleAll(path, handler, methods...)
-}
-
-// SubRouter registers a new request handler with the given path and method(s), trimming
-// the prefix from the path before each request is passed to the handler.
-//
-// The path must end with "/*filepath" (or simply "/*" is allowed in this case). The
-// attached handler sees the sub-path only. For example if path is "/a/b/" and the
-// request URI path is "/a/b/foo", the handler will see a request for "/foo".
-//
-// If no methods are specified, all methods (in AllMethods) will be supported. Otherwise,
-// only the specified methods will be supported.
-//
-// If you don't want the prefix trimmed, instead use Handle with a path that ends with
-// ".../*name" (for some name of your choice).
-func (r *Router) SubRouter(path string, handler http.Handler, methods ...string) {
-	if strings.HasSuffix(path, "/*") {
-		path = path + "filepath"
-	} else if !strings.HasSuffix(path, "/*filepath") {
-		panic("'" + path + "' - path must end with /* or /*filepath")
-	}
-
-	if strings.IndexByte(path[:len(path)-9], '*') > 0 {
-		panic("'" + path + "' - path must contain only one *")
-	}
-
-	if len(methods) == 0 {
-		methods = AllMethods
-	}
-
-	r.HandleAll(path, http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		ps := GetParams(req.Context())
-		req.URL.Path = ps.ByName("filepath")
-		handler.ServeHTTP(w, req)
-	}), methods...)
+// HandlerFunc is an adapter which allows the use of an http.HandlerFunc as a
+// request handle.
+func (r *Router) HandlerFunc(method, path string, handler http.HandlerFunc) {
+	r.Handler(method, path, handler)
 }
 
 // ServeFiles serves files from the given file system root using the http.FileServer
@@ -244,7 +254,17 @@ func (r *Router) SubRouter(path string, handler http.Handler, methods ...string)
 // use http.Dir:
 //     router.ServeFiles("/src/*filepath", http.Dir("/var/www"))
 func (r *Router) ServeFiles(path string, root http.FileSystem) {
-	r.SubRouter(path, http.FileServer(root), GET, HEAD)
+	if len(path) < 10 || path[len(path)-10:] != "/*filepath" {
+		panic("path must end with /*filepath in path '" + path + "'")
+	}
+
+	fileServer := http.FileServer(root)
+
+	r.GET(path, func(w http.ResponseWriter, req *http.Request, ps Params) {
+		req.URL.Path = ps.ByName("filepath")
+		fileServer.ServeHTTP(w, req)
+	})
+	// Note that HEAD requests are handled automatically
 }
 
 // Lookup allows the manual lookup of a method + path combo.
@@ -253,9 +273,17 @@ func (r *Router) ServeFiles(path string, root http.FileSystem) {
 // If the path was found, it returns the handler function and the path parameter
 // values. Otherwise the third return value indicates whether a redirection to
 // the same path with an extra / without the trailing slash should be performed.
-func (r *Router) Lookup(method, path string) (http.Handler, Params, bool) {
+func (r *Router) Lookup(method, path string) (Handle, Params, bool) {
 	if root := r.trees[method]; root != nil {
-		return root.getValue(path)
+		handle, ps, tsr := root.getValue(path, r.getParams)
+		if handle == nil {
+			r.putParams(ps)
+			return nil, nil, tsr
+		}
+		if ps == nil {
+			return handle, nil, tsr
+		}
+		return handle, *ps, tsr
 	}
 	return nil, nil, false
 }

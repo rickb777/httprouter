@@ -1,4 +1,10 @@
-# HttpRouter [![Build Status](https://travis-ci.org/rickb777/httprouter.svg?branch=master)](https://travis-ci.org/rickb777/httprouter) [![Coverage Status](https://coveralls.io/repos/github/rickb777/httprouter/badge.svg?branch=master)](https://coveralls.io/github/rickb777/httprouter?branch=master) [![GoDoc](https://godoc.org/github.com/rickb777/httprouter?status.svg)](http://godoc.org/github.com/rickb777/httprouter)
+# HttpRouter
+
+[![GoDoc](https://img.shields.io/badge/api-Godoc-blue.svg)](http://pkg.go.dev/github.com/rickb777/httprouter)
+[![Build Status](https://travis-ci.org/rickb777/httprouter.svg?branch=master)](https://travis-ci.org/rickb777/httprouter/builds)
+[![Coverage Status](https://coveralls.io/repos/github/rickb777/httprouter/badge.svg?branch=master)](https://coveralls.io/github/rickb777/httprouter?branch=master)
+[![Issues](https://img.shields.io/github/issues/rickb777/httprouter.svg)](https://github.com/rickb777/httprouter/issues)
+
 
 HttpRouter is a lightweight high performance HTTP request router (also called *multiplexer* or just *mux* for short) for [Go](https://golang.org/).
 

@@ -6,6 +6,7 @@ package httprouter
 
 import (
 	"net/http"
+	"strings"
 )
 
 func (r *Router) recv(w http.ResponseWriter, req *http.Request) {
@@ -15,18 +16,20 @@ func (r *Router) recv(w http.ResponseWriter, req *http.Request) {
 }
 
 func (r *Router) allowed(path, reqMethod string) (allow string) {
-	if path == "*" { // server-wide
-		for method := range r.trees {
-			if method == http.MethodOptions {
-				continue
-			}
+	allowed := make([]string, 0, 9)
 
-			// add request method to list of allowed methods
-			if len(allow) == 0 {
-				allow = method
-			} else {
-				allow += ", " + method
+	if path == "*" { // server-wide
+		// empty method is used for internal calls to refresh the cache
+		if reqMethod == "" {
+			for method := range r.trees {
+				if method == http.MethodOptions {
+					continue
+				}
+				// Add request method to list of allowed methods
+				allowed = append(allowed, method)
 			}
+		} else {
+			return r.globalAllowed
 		}
 	} else { // specific path
 		for method := range r.trees {
@@ -35,47 +38,57 @@ func (r *Router) allowed(path, reqMethod string) (allow string) {
 				continue
 			}
 
-			handle, _, _ := r.trees[method].getValue(path)
+			handle, _, _ := r.trees[method].getValue(path, nil)
 			if handle != nil {
-				// add request method to list of allowed methods
-				if len(allow) == 0 {
-					allow = method
-				} else {
-					allow += ", " + method
-				}
+				// Add request method to list of allowed methods
+				allowed = append(allowed, method)
 			}
 		}
 	}
-	if len(allow) > 0 {
-		allow += ", OPTIONS"
+
+	if len(allowed) > 0 {
+		// Add request method to list of allowed methods
+		allowed = append(allowed, http.MethodOptions)
+
+		// Sort allowed methods.
+		// sort.Strings(allowed) unfortunately causes unnecessary allocations
+		// due to allowed being moved to the heap and interface conversion
+		for i, l := 1, len(allowed); i < l; i++ {
+			for j := i; j > 0 && allowed[j] < allowed[j-1]; j-- {
+				allowed[j], allowed[j-1] = allowed[j-1], allowed[j]
+			}
+		}
+
+		// return as comma separated list
+		return strings.Join(allowed, ", ")
 	}
-	return
+
+	return allow
 }
 
-// ServeHTTP makes the router implement the http.Handler interface.
-func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+// serveHTTP attempts to serve the request if a route match is found.
+func (r *Router) serveHTTP(w http.ResponseWriter, req *http.Request, method string) bool {
 	if r.PanicHandler != nil {
 		defer r.recv(w, req)
 	}
 
-	method := req.Method
 	path := req.URL.Path
 
-	if method == HEAD && r.trees[HEAD] == nil {
-		method = GET // follow routes defined for GET instead
-	}
-
 	if root := r.trees[method]; root != nil {
-		if handle, ps, tsr := root.getValue(path); handle != nil {
-			handle.ServeHTTP(w, req.WithContext(WithParams(req.Context(), ps)))
-			return
-
-		} else if method != CONNECT && path != "/" {
-			code := 301 // Permanent redirect, request with GET method
-			if method != GET {
-				// Temporary redirect, request with same method
-				// As of Go 1.3, Go does not support status code 308.
-				code = 307
+		if handle, ps, tsr := root.getValue(path, r.getParams); handle != nil {
+			if ps != nil {
+				handle(w, req, *ps)
+				r.putParams(ps)
+			} else {
+				handle(w, req, nil)
+			}
+			return true
+		} else if method != http.MethodConnect && path != "/" {
+			// Moved Permanently, request with GET method
+			code := http.StatusMovedPermanently
+			if method != http.MethodGet {
+				// Permanent Redirect, request with same method
+				code = http.StatusPermanentRedirect
 			}
 
 			if tsr && r.RedirectTrailingSlash {
@@ -85,7 +98,7 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 					req.URL.Path = path + "/"
 				}
 				http.Redirect(w, req, req.URL.String(), code)
-				return
+				return true
 			}
 
 			// Try to fix the request path
@@ -95,35 +108,53 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 					r.RedirectTrailingSlash,
 				)
 				if found {
-					req.URL.Path = string(fixedPath)
+					req.URL.Path = fixedPath
 					http.Redirect(w, req, req.URL.String(), code)
-					return
+					return true
 				}
 			}
 		}
 	}
 
-	if method == OPTIONS && r.HandleOPTIONS {
+	return false // probably 404
+}
+
+// ServeHTTP makes the router implement the http.Handler interface.
+func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	if r.serveHTTP(w, req, req.Method) {
+		return
+	}
+
+	// For HEAD requests, no HEAD handler had been set up, so we retry the
+	// equivalent GET handler as if this had been a GET request. The response
+	// content will of course be empty.
+	if req.Method == http.MethodHead && r.serveHTTP(w, req, http.MethodGet) {
+		return
+	}
+
+	path := req.URL.Path
+
+	if req.Method == http.MethodOptions && r.HandleOPTIONS {
 		// Handle OPTIONS requests
-		if allow := r.allowed(path, method); len(allow) > 0 {
+		if allow := r.allowed(path, http.MethodOptions); allow != "" {
 			w.Header().Set("Allow", allow)
+			if r.GlobalOPTIONS != nil {
+				r.GlobalOPTIONS.ServeHTTP(w, req)
+			}
 			return
 		}
-	} else {
-		// Handle 405
-		if r.HandleMethodNotAllowed {
-			if allow := r.allowed(path, method); len(allow) > 0 {
-				w.Header().Set("Allow", allow)
-				if r.MethodNotAllowed != nil {
-					r.MethodNotAllowed.ServeHTTP(w, req)
-				} else {
-					http.Error(w,
-						http.StatusText(http.StatusMethodNotAllowed),
-						http.StatusMethodNotAllowed,
-					)
-				}
-				return
+	} else if r.HandleMethodNotAllowed { // Handle 405
+		if allow := r.allowed(path, req.Method); allow != "" {
+			w.Header().Set("Allow", allow)
+			if r.MethodNotAllowed != nil {
+				r.MethodNotAllowed.ServeHTTP(w, req)
+			} else {
+				http.Error(w,
+					http.StatusText(http.StatusMethodNotAllowed),
+					http.StatusMethodNotAllowed,
+				)
 			}
+			return
 		}
 	}
 

@@ -1,6 +1,8 @@
 package httprouter
 
-import "context"
+import (
+	"context"
+)
 
 // Param is a single URL parameter, consisting of a key and a value.
 type Param struct {
@@ -27,26 +29,41 @@ func (ps Params) ByName(name string) string {
 // private type used for unique context keying
 type paramsKey struct{}
 
-// WithParams adds the params into the context. A modified context is returned.
+// ParamsKey is the request context key under which URL params are stored.
+var ParamsKey = paramsKey{}
+
+// WithParams adds the parameters into the context. A modified context is returned.
 func WithParams(parent context.Context, ps Params) context.Context {
-	existing, exists := parent.Value(paramsKey{}).(Params)
+	existing, exists := parent.Value(ParamsKey).(Params)
 	if exists {
-		return context.WithValue(parent, paramsKey{}, append(existing, ps...))
+		return context.WithValue(parent, ParamsKey, append(existing, ps...))
 	}
-	return context.WithValue(parent, paramsKey{}, ps)
+	return context.WithValue(parent, ParamsKey, ps)
 }
 
-// GetParams gets params from context.
-func GetParams(ctx context.Context) Params {
-	ps, _ := ctx.Value(paramsKey{}).(Params)
-	return ps
+// ParamsFromContext pulls the URL parameters from a request context,
+// or returns nil if none are present.
+func ParamsFromContext(ctx context.Context) Params {
+	p, _ := ctx.Value(ParamsKey).(Params)
+	return p
 }
 
-// GetParam gets a param by name from context
-func GetParam(ctx context.Context, name string) string {
-	ps := GetParams(ctx)
+// ParamFromContext gets a parameter by name from context
+func ParamFromContext(ctx context.Context, name string) string {
+	ps := ParamsFromContext(ctx)
 	if ps == nil {
 		return ""
 	}
 	return ps.ByName(name)
+}
+
+// MatchedRoutePathParam is the Param name under which the path of the matched
+// route is stored, if Router.SaveMatchedRoutePath is set.
+var MatchedRoutePathParam = "$matchedRoutePath"
+
+// MatchedRoutePath retrieves the path of the matched route.
+// Router.SaveMatchedRoutePath must have been enabled when the respective
+// handler was added, otherwise this function always returns an empty string.
+func (ps Params) MatchedRoutePath() string {
+	return ps.ByName(MatchedRoutePathParam)
 }
