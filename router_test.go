@@ -6,33 +6,31 @@ package httprouter
 
 import (
 	"fmt"
+	. "github.com/onsi/gomega"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"reflect"
 	"sort"
 	"testing"
 	"time"
 )
 
 func TestParams(t *testing.T) {
+	g := NewGomegaWithT(t)
 	ps := Params{
 		Param{"param1", "value1"},
 		Param{"param2", "value2"},
 		Param{"param3", "value3"},
 	}
 	for i := range ps {
-		if val := ps.ByName(ps[i].Key); val != ps[i].Value {
-			t.Errorf("Wrong value for %s: Got %s; Want %s", ps[i].Key, val, ps[i].Value)
-		}
+		g.Expect(ps.ByName(ps[i].Key)).To(Equal(ps[i].Value))
 	}
-	if val := ps.ByName("noKey"); val != "" {
-		t.Errorf("Expected empty string for not found key; got: %s", val)
-	}
+	g.Expect(ps.ByName("noKey")).To(Equal(""))
 }
 
 func TestRouter_nested_handler_with_params_at_both_levels(t *testing.T) {
+	g := NewGomegaWithT(t)
 	r1 := New()
 	r2 := New()
 
@@ -47,9 +45,7 @@ func TestRouter_nested_handler_with_params_at_both_levels(t *testing.T) {
 			Param{"filepath", "/user/gopher"},
 			Param{"name", "gopher"},
 		}
-		if !reflect.DeepEqual(ps, want) {
-			t.Fatalf("wrong wildcard values: want %v, got %v", want, ps)
-		}
+		g.Expect(ps).To(Equal(want))
 	}))
 
 	w := httptest.NewRecorder()
@@ -57,9 +53,7 @@ func TestRouter_nested_handler_with_params_at_both_levels(t *testing.T) {
 	req, _ := http.NewRequest(http.MethodGet, "/top/rank/user/gopher", nil)
 	r2.ServeHTTP(w, req)
 
-	if !routed {
-		t.Fatal("routing failed")
-	}
+	g.Expect(routed).To(BeTrue())
 }
 
 type handlerStruct struct {
@@ -70,31 +64,32 @@ func (h handlerStruct) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	*h.handled++
 }
 
-func TestRouter_API_using_automatic_HEAD(t *testing.T) {
+func TestRouterAPI(t *testing.T) {
+	g := NewGomegaWithT(t)
 	var get, head, options, post, put, patch, delete, handler, handlerFunc int
 
 	httpHandler := handlerStruct{&handler}
 
 	router := New()
-	router.GET("/", func(w http.ResponseWriter, r *http.Request, _ Params) {
+	router.GET("/GET", func(w http.ResponseWriter, r *http.Request, _ Params) {
 		get++
 	})
-	router.HEAD("/", func(w http.ResponseWriter, r *http.Request, _ Params) {
+	router.HEAD("/HEAD", func(w http.ResponseWriter, r *http.Request, _ Params) {
 		head++
 	})
 	router.OPTIONS("/", func(w http.ResponseWriter, r *http.Request, _ Params) {
 		options++
 	})
-	router.POST("/", func(w http.ResponseWriter, r *http.Request, _ Params) {
+	router.POST("/POST", func(w http.ResponseWriter, r *http.Request, _ Params) {
 		post++
 	})
-	router.PUT("/", func(w http.ResponseWriter, r *http.Request, _ Params) {
+	router.PUT("/PUT", func(w http.ResponseWriter, r *http.Request, _ Params) {
 		put++
 	})
-	router.PATCH("/", func(w http.ResponseWriter, r *http.Request, _ Params) {
+	router.PATCH("/PATCH", func(w http.ResponseWriter, r *http.Request, _ Params) {
 		patch++
 	})
-	router.DELETE("/", func(w http.ResponseWriter, r *http.Request, _ Params) {
+	router.DELETE("/DELETE", func(w http.ResponseWriter, r *http.Request, _ Params) {
 		delete++
 	})
 	router.Handler(http.MethodGet, "/Handler", httpHandler)
@@ -104,162 +99,66 @@ func TestRouter_API_using_automatic_HEAD(t *testing.T) {
 
 	w := httptest.NewRecorder()
 
-	r, _ := http.NewRequest(http.MethodGet, "/", nil)
+	r, _ := http.NewRequest(http.MethodGet, "/GET", nil)
 	router.ServeHTTP(w, r)
-	if get != 1 {
-		t.Error("routing GET failed")
-	}
+	g.Expect(get).To(Equal(1))
 
-	r, _ = http.NewRequest(http.MethodHead, "/", nil)
+	r, _ = http.NewRequest(http.MethodHead, "/HEAD", nil)
 	router.ServeHTTP(w, r)
-	if head != 1 {
-		t.Error("routing HEAD failed")
-	}
-
-	_, _, isHead := router.Lookup(http.MethodHead, "/")
-	if isHead { // <-- N.B.
-		t.Error("lookup HEAD failed")
-	}
+	g.Expect(head).To(Equal(1))
 
 	r, _ = http.NewRequest(http.MethodOptions, "/", nil)
 	router.ServeHTTP(w, r)
-	if options != 1 {
-		t.Error("routing OPTIONS failed")
-	}
+	g.Expect(options).To(Equal(1))
 
-	r, _ = http.NewRequest(http.MethodPost, "/", nil)
+	r, _ = http.NewRequest(http.MethodPost, "/POST", nil)
 	router.ServeHTTP(w, r)
-	if post != 1 {
-		t.Error("routing POST failed")
-	}
+	g.Expect(post).To(Equal(1))
 
-	r, _ = http.NewRequest(http.MethodPut, "/", nil)
+	r, _ = http.NewRequest(http.MethodPut, "/PUT", nil)
 	router.ServeHTTP(w, r)
-	if put != 1 {
-		t.Error("routing PUT failed")
-	}
+	g.Expect(put).To(Equal(1))
 
-	r, _ = http.NewRequest(http.MethodPatch, "/", nil)
+	r, _ = http.NewRequest(http.MethodPatch, "/PATCH", nil)
 	router.ServeHTTP(w, r)
-	if patch != 1 {
-		t.Error("routing PATCH failed")
-	}
+	g.Expect(patch).To(Equal(1))
 
-	r, _ = http.NewRequest(http.MethodDelete, "/", nil)
+	r, _ = http.NewRequest(http.MethodDelete, "/DELETE", nil)
 	router.ServeHTTP(w, r)
-	if delete != 1 {
-		t.Error("routing DELETE failed")
-	}
+	g.Expect(delete).To(Equal(1))
 
 	r, _ = http.NewRequest(http.MethodGet, "/Handler", nil)
 	router.ServeHTTP(w, r)
-	if handler != 1 {
-		t.Error("routing Handler failed")
-	}
+	g.Expect(handler).To(Equal(1))
 
 	r, _ = http.NewRequest(http.MethodGet, "/HandlerFunc", nil)
 	router.ServeHTTP(w, r)
-	if handlerFunc != 1 {
-		t.Error("routing HandlerFunc failed")
-	}
+	g.Expect(handlerFunc).To(Equal(1))
 }
 
-func TestRouter_API_using_specialised_HEAD(t *testing.T) {
-	var get, head, options, post, put, patch, delete, handler, handlerFunc int
-
-	httpHandler := handlerStruct{&handler}
+func TestRouter_API_using_implicit_HEAD(t *testing.T) {
+	g := NewGomegaWithT(t)
+	var get int
 
 	router := New()
-
-	router.GET("/", func(w http.ResponseWriter, r *http.Request, _ Params) {
+	router.GET("/GET", func(w http.ResponseWriter, r *http.Request, _ Params) {
 		get++
-	})
-	router.HEAD("/", func(w http.ResponseWriter, r *http.Request, _ Params) {
-		head++
-	})
-	router.OPTIONS("/", func(w http.ResponseWriter, r *http.Request, _ Params) {
-		options++
-	})
-	router.POST("/", func(w http.ResponseWriter, r *http.Request, _ Params) {
-		post++
-	})
-	router.PUT("/", func(w http.ResponseWriter, r *http.Request, _ Params) {
-		put++
-	})
-	router.PATCH("/", func(w http.ResponseWriter, r *http.Request, _ Params) {
-		patch++
-	})
-	router.DELETE("/", func(w http.ResponseWriter, r *http.Request, _ Params) {
-		delete++
-	})
-	router.Handler(http.MethodGet, "/Handler", httpHandler)
-	router.HandlerFunc(http.MethodGet, "/HandlerFunc", func(w http.ResponseWriter, r *http.Request) {
-		handlerFunc++
 	})
 
 	w := httptest.NewRecorder()
 
-	r, _ := http.NewRequest(http.MethodGet, "/", nil)
+	r, _ := http.NewRequest(http.MethodHead, "/GET", nil)
 	router.ServeHTTP(w, r)
-	if get != 1 {
-		t.Error("routing GET failed")
-	}
-
-	r, _ = http.NewRequest(http.MethodHead, "/", nil)
-	router.ServeHTTP(w, r)
-	if head != 1 {
-		t.Error("routing HEAD failed")
-	}
-
-	r, _ = http.NewRequest(http.MethodOptions, "/", nil)
-	router.ServeHTTP(w, r)
-	if options != 1 {
-		t.Error("routing OPTIONS failed")
-	}
-
-	r, _ = http.NewRequest(http.MethodPost, "/", nil)
-	router.ServeHTTP(w, r)
-	if post != 1 {
-		t.Error("routing POST failed")
-	}
-
-	r, _ = http.NewRequest(http.MethodPut, "/", nil)
-	router.ServeHTTP(w, r)
-	if put != 1 {
-		t.Error("routing PUT failed")
-	}
-
-	r, _ = http.NewRequest(http.MethodPatch, "/", nil)
-	router.ServeHTTP(w, r)
-	if patch != 1 {
-		t.Error("routing PATCH failed")
-	}
-
-	r, _ = http.NewRequest(http.MethodDelete, "/", nil)
-	router.ServeHTTP(w, r)
-	if delete != 1 {
-		t.Error("routing DELETE failed")
-	}
-
-	r, _ = http.NewRequest(http.MethodGet, "/Handler", nil)
-	router.ServeHTTP(w, r)
-	if handler != 1 {
-		t.Error("routing Handler failed")
-	}
-
-	r, _ = http.NewRequest(http.MethodGet, "/HandlerFunc", nil)
-	router.ServeHTTP(w, r)
-	if handlerFunc != 1 {
-		t.Error("routing HandlerFunc failed")
-	}
+	g.Expect(get).To(Equal(1))
 }
 
 func TestRouter_HandleAll(t *testing.T) {
-	var saw = make(map[string]struct{})
+	g := NewGomegaWithT(t)
+	var saw = make(map[string]int)
 
 	router := New()
 	router.HandleAll("/", func(w http.ResponseWriter, r *http.Request, _ Params) {
-		saw[r.Method] = struct{}{}
+		saw[r.Method]++
 	})
 
 	w := httptest.NewRecorder()
@@ -267,62 +166,103 @@ func TestRouter_HandleAll(t *testing.T) {
 	for _, method := range []string{http.MethodHead, http.MethodGet, http.MethodPut, http.MethodPost, http.MethodDelete, http.MethodPatch, http.MethodOptions} {
 		r, _ := http.NewRequest(method, "/", nil)
 		router.ServeHTTP(w, r)
-		if _, ok := saw[method]; !ok {
-			t.Errorf("routing %s failed", method)
-		}
 	}
+
+	g.Expect(saw).To(Equal(map[string]int{
+		http.MethodHead: 1, http.MethodGet: 1, http.MethodPut: 1, http.MethodPost: 1, http.MethodDelete: 1, http.MethodPatch: 1, http.MethodOptions: 1,
+	}))
+}
+
+func TestRouter_HandlerAll(t *testing.T) {
+	g := NewGomegaWithT(t)
+	var saw = make(map[string]int)
+
+	router := New()
+	router.HandlerAll("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		saw[r.Method]++
+	}))
+
+	w := httptest.NewRecorder()
+
+	for _, method := range []string{http.MethodHead, http.MethodGet, http.MethodPut, http.MethodPost, http.MethodDelete, http.MethodPatch, http.MethodOptions} {
+		r, _ := http.NewRequest(method, "/", nil)
+		router.ServeHTTP(w, r)
+	}
+
+	g.Expect(saw).To(Equal(map[string]int{
+		http.MethodHead: 1, http.MethodGet: 1, http.MethodPut: 1, http.MethodPost: 1, http.MethodDelete: 1, http.MethodPatch: 1, http.MethodOptions: 1,
+	}))
 }
 
 func TestRouter_Root(t *testing.T) {
+	g := NewGomegaWithT(t)
 	router := New()
 	recv := catchPanic(func() {
 		router.GET("noSlashRoot", nil)
 	})
-	if recv == nil {
-		t.Fatal("registering path not beginning with '/' did not panic")
-	}
+	g.Expect(recv).NotTo(BeNil())
 }
 
+func TestRouterInvalidInput(t *testing.T) {
+	g := NewGomegaWithT(t)
+	router := New()
+
+	handle := func(_ http.ResponseWriter, _ *http.Request, _ Params) {}
+
+	recv := catchPanic(func() {
+		router.Handle("", "/", handle)
+	})
+	g.Expect(recv).NotTo(BeNil())
+
+	recv = catchPanic(func() {
+		router.GET("", handle)
+	})
+	g.Expect(recv).NotTo(BeNil())
+
+	recv = catchPanic(func() {
+		router.GET("noSlashRoot", handle)
+	})
+	g.Expect(recv).NotTo(BeNil())
+
+	recv = catchPanic(func() {
+		router.GET("/", nil)
+	})
+	g.Expect(recv).NotTo(BeNil())
+}
 func TestRouter_Chaining(t *testing.T) {
+	g := NewGomegaWithT(t)
 	router1 := New()
 	router2 := New()
 	router1.NotFound = router2
 
-	fooHit := false
+	fooHit := 0
 	router1.POST("/foo", func(w http.ResponseWriter, req *http.Request, _ Params) {
-		fooHit = true
+		fooHit++
 		w.WriteHeader(http.StatusOK)
 	})
 
-	barHit := false
+	barHit := 0
 	router2.POST("/bar", func(w http.ResponseWriter, req *http.Request, _ Params) {
-		barHit = true
+		barHit++
 		w.WriteHeader(http.StatusOK)
 	})
 
 	r, _ := http.NewRequest(http.MethodPost, "/foo", nil)
 	w := httptest.NewRecorder()
 	router1.ServeHTTP(w, r)
-	if !(w.Code == http.StatusOK && fooHit) {
-		t.Errorf("Regular routing failed with router chaining.")
-		t.FailNow()
-	}
+	g.Expect(fooHit).To(Equal(1))
+	g.Expect(w.Code).To(Equal(http.StatusOK))
 
 	r, _ = http.NewRequest(http.MethodPost, "/bar", nil)
 	w = httptest.NewRecorder()
 	router1.ServeHTTP(w, r)
-	if !(w.Code == http.StatusOK && barHit) {
-		t.Errorf("Chained routing failed with router chaining.")
-		t.FailNow()
-	}
+	g.Expect(barHit).To(Equal(1))
+	g.Expect(w.Code).To(Equal(http.StatusOK))
 
 	r, _ = http.NewRequest(http.MethodPost, "/qax", nil)
 	w = httptest.NewRecorder()
 	router1.ServeHTTP(w, r)
-	if !(w.Code == http.StatusNotFound) {
-		t.Errorf("NotFound behavior failed with router chaining.")
-		t.FailNow()
-	}
+	g.Expect(w.Code).To(Equal(http.StatusNotFound))
 }
 
 func BenchmarkAllowed(b *testing.B) {
@@ -345,7 +285,9 @@ func BenchmarkAllowed(b *testing.B) {
 		}
 	})
 }
+
 func TestRouter_OPTIONS(t *testing.T) {
+	g := NewGomegaWithT(t)
 	handlerFunc := func(_ http.ResponseWriter, _ *http.Request, _ Params) {}
 
 	router := New()
@@ -356,28 +298,20 @@ func TestRouter_OPTIONS(t *testing.T) {
 	r, _ := http.NewRequest(http.MethodOptions, "*", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, r)
-	if !(w.Code == http.StatusOK) {
-		t.Errorf("OPTIONS handling failed: Code=%d, Header=%v", w.Code, w.Header())
-	} else if allow := w.Header().Get("Allow"); allow != "OPTIONS, POST" {
-		t.Error("unexpected Allow header value: " + allow)
-	}
+	g.Expect(w.Code).To(Equal(http.StatusOK))
+	g.Expect(w.Header().Get("Allow")).To(Equal("OPTIONS, POST"))
 
 	// path
 	r, _ = http.NewRequest(http.MethodOptions, "/path", nil)
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, r)
-	if !(w.Code == http.StatusOK) {
-		t.Errorf("OPTIONS handling failed: Code=%d, Header=%v", w.Code, w.Header())
-	} else if allow := w.Header().Get("Allow"); allow != "OPTIONS, POST" {
-		t.Error("unexpected Allow header value: " + allow)
-	}
+	g.Expect(w.Code).To(Equal(http.StatusOK))
+	g.Expect(w.Header().Get("Allow")).To(Equal("OPTIONS, POST"))
 
 	r, _ = http.NewRequest(http.MethodOptions, "/doesnotexist", nil)
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, r)
-	if !(w.Code == http.StatusNotFound) {
-		t.Errorf("OPTIONS handling failed: Code=%d, Header=%v", w.Code, w.Header())
-	}
+	g.Expect(w.Code).To(Equal(http.StatusNotFound))
 
 	// add another method
 	router.GET("/path", handlerFunc)
@@ -393,26 +327,20 @@ func TestRouter_OPTIONS(t *testing.T) {
 	r, _ = http.NewRequest(http.MethodOptions, "*", nil)
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, r)
-	if !(w.Code == http.StatusNoContent) {
-		t.Errorf("OPTIONS handling failed: Code=%d, Header=%v", w.Code, w.Header())
-	} else if allow := w.Header().Get("Allow"); allow != "GET, OPTIONS, POST" {
-		t.Error("unexpected Allow header value: " + allow)
-	}
+	g.Expect(w.Code).To(Equal(http.StatusNoContent))
+	g.Expect(w.Header().Get("Allow")).To(Equal("GET, OPTIONS, POST"))
 
 	// path
 	r, _ = http.NewRequest(http.MethodOptions, "/path", nil)
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, r)
-	if !(w.Code == http.StatusNoContent) {
-		t.Errorf("OPTIONS handling failed: Code=%d, Header=%v", w.Code, w.Header())
-	} else if allow := w.Header().Get("Allow"); allow != "GET, OPTIONS, POST" {
-		t.Error("unexpected Allow header value: " + allow)
-	}
+	g.Expect(w.Code).To(Equal(http.StatusNoContent))
+	g.Expect(w.Header().Get("Allow")).To(Equal("GET, OPTIONS, POST"))
 
 	// custom handler
-	var custom bool
+	custom := 0
 	router.OPTIONS("/path", func(w http.ResponseWriter, r *http.Request, _ Params) {
-		custom = true
+		custom++
 	})
 
 	// test again
@@ -420,28 +348,20 @@ func TestRouter_OPTIONS(t *testing.T) {
 	r, _ = http.NewRequest(http.MethodOptions, "*", nil)
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, r)
-	if !(w.Code == http.StatusNoContent) {
-		t.Errorf("OPTIONS handling failed: Code=%d, Header=%v", w.Code, w.Header())
-	} else if allow := w.Header().Get("Allow"); allow != "GET, OPTIONS, POST" {
-		t.Error("unexpected Allow header value: " + allow)
-	}
-	if custom {
-		t.Error("custom handler called on *")
-	}
+	g.Expect(w.Code).To(Equal(http.StatusNoContent))
+	g.Expect(w.Header().Get("Allow")).To(Equal("GET, OPTIONS, POST"))
+	g.Expect(custom).To(Equal(0))
 
 	// path
 	r, _ = http.NewRequest(http.MethodOptions, "/path", nil)
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, r)
-	if !(w.Code == http.StatusOK) {
-		t.Errorf("OPTIONS handling failed: Code=%d, Header=%v", w.Code, w.Header())
-	}
-	if !custom {
-		t.Error("custom handler not called")
-	}
+	g.Expect(w.Code).To(Equal(http.StatusOK))
+	g.Expect(custom).To(Equal(1))
 }
 
 func TestRouter_MethodNotAllowed(t *testing.T) {
+	g := NewGomegaWithT(t)
 	handlerFunc := func(_ http.ResponseWriter, _ *http.Request, _ Params) {}
 
 	router := New()
@@ -451,11 +371,8 @@ func TestRouter_MethodNotAllowed(t *testing.T) {
 	r, _ := http.NewRequest(http.MethodGet, "/path", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, r)
-	if !(w.Code == http.StatusMethodNotAllowed) {
-		t.Errorf("NotAllowed handling failed: Code=%d, Header=%v", w.Code, w.Header())
-	} else if allow := w.Header().Get("Allow"); allow != "OPTIONS, POST" {
-		t.Error("unexpected Allow header value: " + allow)
-	}
+	g.Expect(w.Code).To(Equal(http.StatusMethodNotAllowed))
+	g.Expect(w.Header().Get("Allow")).To(Equal("OPTIONS, POST"))
 
 	// add another method
 	router.DELETE("/path", handlerFunc)
@@ -465,11 +382,8 @@ func TestRouter_MethodNotAllowed(t *testing.T) {
 	r, _ = http.NewRequest(http.MethodGet, "/path", nil)
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, r)
-	if !(w.Code == http.StatusMethodNotAllowed) {
-		t.Errorf("NotAllowed handling failed: Code=%d, Header=%v", w.Code, w.Header())
-	} else if allow := w.Header().Get("Allow"); allow != "DELETE, OPTIONS, POST" {
-		t.Error("unexpected Allow header value: " + allow)
-	}
+	g.Expect(w.Code).To(Equal(http.StatusMethodNotAllowed))
+	g.Expect(w.Header().Get("Allow")).To(Equal("DELETE, OPTIONS, POST"))
 
 	// test custom handler
 	w = httptest.NewRecorder()
@@ -479,18 +393,13 @@ func TestRouter_MethodNotAllowed(t *testing.T) {
 		w.Write([]byte(responseText))
 	})
 	router.ServeHTTP(w, r)
-	if got := w.Body.String(); !(got == responseText) {
-		t.Errorf("unexpected response got %q want %q", got, responseText)
-	}
-	if w.Code != http.StatusTeapot {
-		t.Errorf("unexpected response code %d want %d", w.Code, http.StatusTeapot)
-	}
-	if allow := w.Header().Get("Allow"); allow != "DELETE, OPTIONS, POST" {
-		t.Error("unexpected Allow header value: " + allow)
-	}
+	g.Expect(w.Body.String()).To(Equal(responseText))
+	g.Expect(w.Code).To(Equal(http.StatusTeapot))
+	g.Expect(w.Header().Get("Allow")).To(Equal("DELETE, OPTIONS, POST"))
 }
 
 func TestRouter_NotFound(t *testing.T) {
+	g := NewGomegaWithT(t)
 	handlerFunc := func(_ http.ResponseWriter, _ *http.Request, _ Params) {}
 
 	router := New()
@@ -513,36 +422,35 @@ func TestRouter_NotFound(t *testing.T) {
 		{"/../path", http.StatusMovedPermanently, "/path"}, // CleanPath
 		{"/nope", http.StatusNotFound, ""},                 // NotFound
 	}
-	for _, tr := range testRoutes {
+	for i, tr := range testRoutes {
 		r, _ := http.NewRequest(http.MethodGet, tr.route, nil)
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, r)
-		if !(w.Code == tr.code && (w.Code == http.StatusNotFound || fmt.Sprint(w.Header().Get("Location")) == tr.location)) {
-			t.Errorf("NotFound handling route %s failed: Code=%d, Header=%v", tr.route, w.Code, w.Header().Get("Location"))
+		g.Expect(w.Code).To(Equal(tr.code))
+		if w.Code != http.StatusNotFound {
+			g.Expect(w.Header().Get("Location")).To(Equal(tr.location), fmt.Sprintf("%d %s", i, tr.route))
 		}
 	}
 
 	// Test custom not found handler
-	var notFound bool
+	notFound := 0
 	router.NotFound = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		rw.WriteHeader(http.StatusNotFound)
-		notFound = true
+		notFound++
 	})
 	r, _ := http.NewRequest(http.MethodGet, "/nope", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, r)
-	if !(w.Code == http.StatusNotFound && notFound == true) {
-		t.Errorf("Custom NotFound handler failed: Code=%d, Header=%v", w.Code, w.Header())
-	}
+	g.Expect(w.Code).To(Equal(http.StatusNotFound))
+	g.Expect(notFound).To(Equal(1))
 
 	// Test other method than GET (want 308 instead of 301)
 	router.PATCH("/path", handlerFunc)
 	r, _ = http.NewRequest(http.MethodPatch, "/path/", nil)
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, r)
-	if !(w.Code == http.StatusPermanentRedirect && fmt.Sprint(w.Header()) == "map[Location:[/path]]") {
-		t.Errorf("Custom NotFound handler failed: Code=%d, Header=%v", w.Code, w.Header())
-	}
+	g.Expect(w.Code).To(Equal(http.StatusPermanentRedirect))
+	g.Expect(w.Header().Get("Location")).To(Equal("/path"))
 
 	// Test special case where no node for the prefix "/" exists
 	router = New()
@@ -550,12 +458,11 @@ func TestRouter_NotFound(t *testing.T) {
 	r, _ = http.NewRequest(http.MethodGet, "/", nil)
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, r)
-	if !(w.Code == http.StatusNotFound) {
-		t.Errorf("NotFound handling route / failed: Code=%d", w.Code)
-	}
+	g.Expect(w.Code).To(Equal(http.StatusNotFound))
 }
 
 func TestRouter_PanicHandler(t *testing.T) {
+	g := NewGomegaWithT(t)
 	router := New()
 	panicHandled := false
 
@@ -571,19 +478,16 @@ func TestRouter_PanicHandler(t *testing.T) {
 	req, _ := http.NewRequest(http.MethodPut, "/user/gopher", nil)
 
 	defer func() {
-		if rcv := recover(); rcv != nil {
-			t.Fatal("handling panic failed")
-		}
+		g.Expect(recover()).To(BeNil())
 	}()
 
 	router.ServeHTTP(w, req)
 
-	if !panicHandled {
-		t.Fatal("simulating failed")
-	}
+	g.Expect(panicHandled).To(BeTrue())
 }
 
 func TestRouter_Lookup(t *testing.T) {
+	g := NewGomegaWithT(t)
 	routedCount := 0
 	wantHandle := func(_ http.ResponseWriter, _ *http.Request, _ Params) {
 		routedCount++
@@ -594,64 +498,42 @@ func TestRouter_Lookup(t *testing.T) {
 
 	// try empty router first
 	handle, _, tsr := router.Lookup(http.MethodGet, "/nope")
-	if handle != nil {
-		t.Fatalf("Got handle for unregistered pattern: %v", handle)
-	}
-	if tsr {
-		t.Error("Got wrong TSR recommendation.")
-	}
+	g.Expect(handle).To(BeNil())
+	g.Expect(tsr).To(BeFalse())
 
 	// insert route and try again
 	router.GET("/user/:name", wantHandle)
 
 	handle, params, tsr := router.Lookup(http.MethodGet, "/user/gopher")
-	if handle == nil {
-		t.Fatal("Got no handle.")
-	} else {
-		handle(nil, nil, nil)
-		if routedCount != 1 {
-			t.Fatal("Routing failed.")
-		}
-	}
+	g.Expect(handle).NotTo(BeNil())
 
-	if !reflect.DeepEqual(params, wantParams) {
-		t.Fatalf("Wrong parameter values: want %v, got %v", wantParams, params)
-	}
+	handle(nil, nil, nil)
+	g.Expect(routedCount).To(Equal(1))
+	g.Expect(params).To(Equal(wantParams))
+
 	routedCount = 0
 
 	// route without param
 	router.GET("/user", wantHandle)
 	handle, params, _ = router.Lookup(http.MethodGet, "/user")
-	if handle == nil {
-		t.Fatal("Got no handle!")
-	} else {
-		handle(nil, nil, nil)
-		if routedCount == 0 {
-			t.Fatal("Routing failed!")
-		}
-	}
-	if params != nil {
-		t.Fatalf("Wrong parameter values: want %v, got %v", nil, params)
-	}
+	g.Expect(handle).NotTo(BeNil())
+
+	handle(nil, nil, nil)
+	g.Expect(routedCount).NotTo(Equal(0))
+
+	g.Expect(params).To(BeNil())
 
 	handle, _, tsr = router.Lookup(http.MethodGet, "/user/gopher/")
-	if handle != nil {
-		t.Fatalf("Got handle for unregistered pattern: %v", handle)
-	}
-	if !tsr {
-		t.Error("Got no TSR recommendation.")
-	}
+	g.Expect(handle).To(BeNil())
+	g.Expect(tsr).To(BeTrue())
 
 	handle, _, tsr = router.Lookup(http.MethodGet, "/nope")
-	if handle != nil {
-		t.Fatalf("Got handle for unregistered pattern: %v", handle)
-	}
-	if tsr {
-		t.Error("Got wrong TSR recommendation.")
-	}
+	g.Expect(handle).To(BeNil())
+	g.Expect(tsr).To(BeFalse())
 }
 
 func TestRouter_ListPaths(t *testing.T) {
+	g := NewGomegaWithT(t)
 	router := New()
 
 	routes := []string{
@@ -682,32 +564,27 @@ func TestRouter_ListPaths(t *testing.T) {
 	//printChildren(router.trees[GET], "")
 
 	all := router.ListPaths("")
-	if len(all) != len(AllMethods) {
-		t.Errorf("Expected %d methods but got %d\n%v", len(AllMethods), len(all), all)
-	}
+	g.Expect(len(all)).To(Equal(len(AllMethods)))
 
 	for _, method := range AllMethods {
 		actual := all[method]
 		extra := "/" + method
 		expected := append(routes, extra)
 		sort.Strings(expected)
-		if !reflect.DeepEqual(expected, actual) {
-			t.Errorf("\nExpected %v\nbut got  %v", expected, actual)
-		}
+		g.Expect(actual).To(Equal(expected))
 	}
 
 	actual := router.ListPaths(http.MethodGet)
 	extra := "/GET"
 	expected := append(routes, extra)
 	sort.Strings(expected)
-	if !reflect.DeepEqual(expected, actual[http.MethodGet]) {
-		t.Errorf("\nExpected %v\nbut got  %v", expected, actual)
-	}
+	g.Expect(actual[http.MethodGet]).To(Equal(expected))
 }
 
 //-------------------------------------------------------------------------------------------------
 
 func TestRouter_SubRouter_panics(t *testing.T) {
+	g := NewGomegaWithT(t)
 	cases := []string{"/noFilepath", "/foo*/*", "/foo*/*filepath", "/foo/"}
 
 	for _, c := range cases {
@@ -716,13 +593,12 @@ func TestRouter_SubRouter_panics(t *testing.T) {
 		recv := catchPanic(func() {
 			router.SubRouter(c, NewStubHandler())
 		})
-		if recv == nil {
-			t.Errorf("%s: registering path not ending with '*filepath' did not panic", c)
-		}
+		g.Expect(recv).NotTo(BeNil(), c)
 	}
 }
 
 func TestRouter_ServeFiles_supported_methods(t *testing.T) {
+	g := NewGomegaWithT(t)
 	cases := []struct {
 		method         string
 		expectedLength int
@@ -738,25 +614,20 @@ func TestRouter_ServeFiles_supported_methods(t *testing.T) {
 		recv := catchPanic(func() {
 			router.ServeFiles("/noFilepath", mfs)
 		})
-		if recv == nil {
-			t.Fatal("registering path not ending with '*filepath' did not panic")
-		}
+		g.Expect(recv).NotTo(BeNil(), c)
 
 		router.ServeFiles("/*filepath", mfs)
 
 		w := httptest.NewRecorder()
 		r, _ := http.NewRequest(c.method, "/favicon.ico", nil)
 		router.ServeHTTP(w, r)
-		if mfs.opened != 1 {
-			t.Errorf("%s: serving file not opened", c.method)
-		}
-		if w.Body.Len() != c.expectedLength {
-			t.Errorf("%s: serving file wrong length %d", c.method, w.Body.Len())
-		}
+		g.Expect(mfs.opened).To(Equal(1), c.method)
+		g.Expect(w.Body.Len()).To(Equal(c.expectedLength), c.method)
 	}
 }
 
 func TestRouter_ServeFiles_unsupported_methods(t *testing.T) {
+	g := NewGomegaWithT(t)
 	cases := []string{http.MethodPut, http.MethodPost, http.MethodDelete}
 
 	for _, method := range cases {
@@ -768,12 +639,8 @@ func TestRouter_ServeFiles_unsupported_methods(t *testing.T) {
 		w := httptest.NewRecorder()
 		r, _ := http.NewRequest(method, "/favicon.ico", nil)
 		router.ServeHTTP(w, r)
-		if mfs.opened != 0 {
-			t.Errorf("%s: serving file should not happen", method)
-		}
-		if w.Code != 405 {
-			t.Errorf("%s: code was %d", method, w.Code)
-		}
+		g.Expect(mfs.opened).To(BeZero(), method)
+		g.Expect(w.Code).To(Equal(405), method)
 	}
 }
 

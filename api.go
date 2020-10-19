@@ -240,7 +240,7 @@ func (r *Router) HandlerFunc(method, path string, handler http.HandlerFunc) {
 // ServeFiles serves files from the given file system root using the http.FileServer
 // handler. Note that http.NotFound is used instead of the Router's NotFound handler;
 // if this is inconvenient, consider using SubRouter with your own file server instead
-// (see https://github.com/rickb777/servefiles for example).
+// (see https://github.com/rickb777/servefiles/v3 for example).
 //
 // The path must end with "/*filepath" (or simply "/*" is allowed in this case), files
 // are then served from the local path /defined/root/dir/*filepath.
@@ -253,6 +253,11 @@ func (r *Router) HandlerFunc(method, path string, handler http.HandlerFunc) {
 // To use the operating system's file system implementation,
 // use http.Dir:
 //     router.ServeFiles("/src/*filepath", http.Dir("/var/www"))
+//
+// Tip: alternative file servers can be plugged in via SubRouter instead.
+// This allows, for example, use of the asset handler
+// github.com/rickb777/servefiles/v3 with its improved HTTP header
+// configuration.
 func (r *Router) ServeFiles(path string, root http.FileSystem) {
 	if len(path) < 10 || path[len(path)-10:] != "/*filepath" {
 		panic("path must end with /*filepath in path '" + path + "'")

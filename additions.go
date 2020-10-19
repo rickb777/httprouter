@@ -49,13 +49,13 @@ func (r *Router) HandlerAll(path string, handler http.Handler, methods ...string
 //
 // The path must end with "/*filepath" (or simply "/*" is allowed in this case). The
 // attached handle sees the sub-path only. For example if path is "/a/b/" and the
-// request URI path is "/a/b/foo", the handle will see a request for "/foo".
-//
-// If no methods are specified, all methods (in AllMethods) will be supported. Otherwise,
-// only the specified methods will be supported.
+// request URI path is "/a/b/foo", the handler will see a request for "/foo".
 //
 // If you don't want the prefix trimmed, instead use Handle with a path that ends with
 // ".../*name" (for some name of your choice).
+//
+// If no methods are specified, all methods (in AllMethods) will be supported. Otherwise,
+// only the specified methods will be supported.
 func (r *Router) SubRouter(path string, handler http.Handler, methods ...string) {
 	if strings.HasSuffix(path, "/*") {
 		path = path + "filepath"
