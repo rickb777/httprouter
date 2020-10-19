@@ -1,8 +1,8 @@
 # HttpRouter
 
 [![GoDoc](https://img.shields.io/badge/api-Godoc-blue.svg)](http://pkg.go.dev/github.com/rickb777/httprouter)
-[![Build Status](https://travis-ci.org/rickb777/httprouter.svg?branch=master)](https://travis-ci.org/rickb777/httprouter/builds)
-[![Coverage Status](https://coveralls.io/repos/github/rickb777/httprouter/badge.svg?branch=master)](https://coveralls.io/github/rickb777/httprouter?branch=master)
+[![Build Status](https://travis-ci.org/rickb777/httprouter.svg?branch=v3)](https://travis-ci.org/rickb777/httprouter/builds)
+[![Coverage Status](https://coveralls.io/repos/github/rickb777/httprouter/badge.svg?branch=v3)](https://coveralls.io/github/rickb777/httprouter?branch=v3)
 [![Issues](https://img.shields.io/github/issues/rickb777/httprouter.svg)](https://github.com/rickb777/httprouter/issues)
 
 
