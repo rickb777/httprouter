@@ -252,7 +252,8 @@ func (r *Router) HandlerFunc(method, path string, handler http.HandlerFunc) {
 //
 // To use the operating system's file system implementation,
 // use http.Dir:
-//     router.ServeFiles("/src/*filepath", http.Dir("/var/www"))
+//
+//	router.ServeFiles("/src/*filepath", http.Dir("/var/www"))
 //
 // Tip: alternative file servers can be plugged in via SubRouter instead.
 // This allows, for example, use of the asset handler
