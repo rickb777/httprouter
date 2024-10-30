@@ -6,7 +6,7 @@ toolchain go1.23.2
 
 require (
 	github.com/onsi/gomega v1.35.0
-	github.com/rickb777/servefiles/v3 v3.7.5
+	github.com/rickb777/servefiles/v3 v3.7.6
 )
 
 require (
